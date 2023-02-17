@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/mochiko_platformer.dir/tile_editor.cpp.o -o mochiko_platformer   -L/usr/local/lib  -Wl,-rpath,/usr/local/lib -lraylib 
