@@ -1,0 +1,1 @@
+emcc -o game.html tile\ editor.cpp include/engine.cpp include/entity.cpp include/screen.cpp -Os -Wall /usr/lib/libraylib.a -I. -I/usr/lib/raylib.h -L. -L/usr/lib/libraylib-a -s USE_GLFW=3 -s ASYNCIFY -DPLATFORM_WEB
