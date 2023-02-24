@@ -18,4 +18,7 @@ public:
 	bool CheckMove(EntityContainer to);
 	bool CheckMove(EntityHitbox to);
 };
+
+int TriggerCollision(Entity& Ent);
+Point FindTrigger(Screen& screen, int find);
 #endif

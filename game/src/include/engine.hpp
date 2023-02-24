@@ -2,7 +2,7 @@
 #define engine_h
 #include <string>
 #include <iostream>
-#include "/usr/lib/raylib.h"
+#include "/home/catto/raylib/src/raylib.h"
 // Macros / global variables = SNAKE_CASE_CAPS
 // Functions / classes = PascalCase
 // Variables = camelCase
@@ -28,4 +28,3 @@ DoublePoint PointToDoublePoint(Point p);
 bool ColorsEqual(Color c1, Color c2);
 
 #endif
-	

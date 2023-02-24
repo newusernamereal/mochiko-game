@@ -1,3 +1,0 @@
-/home/catto/mochiko-game/game/src/CMakeFiles/mochiko_platformer.dir
-/home/catto/mochiko-game/game/src/CMakeFiles/edit_cache.dir
-/home/catto/mochiko-game/game/src/CMakeFiles/rebuild_cache.dir

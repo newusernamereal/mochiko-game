@@ -75,6 +75,7 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 						if (entities[0].hitboxes.size()) {
 							if (player.x == -1 && player.y == -1) {
 								entities[0].hitboxes[0].pos = { static_cast<double>(xcounter * SCREENX / size), static_cast<double>((y - (data.size() - (size))) * SCREENY / size) };
+								std::cout << "\n\nPlayer X: " << entities[0].hitboxes[0].pos.x << "\nPlayer Y: " << entities[0].hitboxes[0].pos.y << "\n\n";
 							}
 							else {
 								entities[0].hitboxes[0].pos = { player.x * SCREENX / size, player.y * SCREENY / size };
@@ -95,7 +96,7 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 					empty.triggerID = std::stoi(currentNumber);
 					currentNumber = "0";
 					empty.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter* SCREENX / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENX / size, SCREENY / size));
-					entities.push_back(empty); 
+					entities.push_back(empty);
 				}
 				else if (data[y][x] == 'b') {
 					empty.hitboxTexts.clear();
@@ -147,4 +148,25 @@ bool Screen::CheckMove(EntityHitbox to) {
 		}
 	}
 	return true;
+}
+
+int TriggerCollision(Entity& Player) {
+	for (int i = 0; i < LOADED_ENTITIES_HEAD; i++) {
+		if (LOADED_ENTITIES[i].Colliding(Player.hitboxes[0]) && LOADED_ENTITIES[i].triggerID != 0) {
+			return LOADED_ENTITIES[i].triggerID;
+		}
+	}
+	return 0;
+}
+Point FindTrigger(Screen & screen, int find) {
+	Entity empty;
+	empty.addBox(EntityHitbox(0, 0, screen.tileSizeX, screen.tileSizeY));
+	for (int x = 0; x < SCREENX; x += screen.tileSizeX) {
+		for (int y = 0; y < SCREENY; y += screen.tileSizeY) {
+			if (TriggerCollision(empty) == find) {
+				return { x,y };
+			}
+		}
+	}
+	return { 0,0 };
 }

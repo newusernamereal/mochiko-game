@@ -152,6 +152,7 @@ void initEntityArr(void);
 void clearEntities(void);
 void clearEntitiesExceptFirst(void);
 
+void DrawEntity(int k);
 void DrawEntities(void);
 void MoveEntities(void);
 #endif

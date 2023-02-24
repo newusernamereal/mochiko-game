@@ -26,14 +26,14 @@ int main(){
 	std::ofstream file;
 	std::ifstream fileRead;
 	std::vector<text> textures;
-	textures.push_back({LoadTexture("assets/white_top.png"),"assets/white_top.png"});
-	textures.push_back({LoadTexture("assets/wood.png"),"assets/wood.png"});
-	textures.push_back({LoadTexture("assets/stonebrick.png"),"assets/stonebrick.png"});
-	textures.push_back({LoadTexture("assets/doorbottom.png"),"assets/doorbottom.png"});
-	textures.push_back({LoadTexture("assets/doortop.png"),"assets/doortop.png"});
-	textures.push_back({LoadTexture("assets/bedleft.png"),"assets/bedleft.png"});
-	textures.push_back({LoadTexture("assets/bedright.png"),"assets/bedright.png"});
-	Texture2D Character = LoadTexture("assets/character.png");
+	textures.push_back({LoadTexture("../assets/white_top.png"),"assets/white_top.png"});
+	textures.push_back({LoadTexture("../assets/wood.png"),"assets/wood.png"});
+	textures.push_back({LoadTexture("../assets/stonebrick.png"),"assets/stonebrick.png"});
+	textures.push_back({LoadTexture("../assets/doorbottom.png"),"assets/doorbottom.png"});
+	textures.push_back({LoadTexture("../assets/doortop.png"),"assets/doortop.png"});
+	textures.push_back({LoadTexture("../assets/bedleft.png"),"assets/bedleft.png"});
+	textures.push_back({LoadTexture("../assets/bedright.png"),"assets/bedright.png"});
+	Texture2D Character = LoadTexture("../assets/character.png");
 	Texture2D Brush = textures[0].texture;
 	int playerx, playery;
 	playerx = playery = 0;
@@ -63,7 +63,6 @@ int main(){
 	fileRead.open("save.ce");
 	if (fileRead.is_open()) {
 		std::vector<std::string> data;
-		bool flag = false;
 		std::string currentLine;
 		std::string currentNumber;
 		int xcounter;

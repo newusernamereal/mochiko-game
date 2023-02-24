@@ -2,11 +2,6 @@
 // Macros / global variables = SNAKE_CASE_CAPS
 // Functions / classes = PascalCase
 // Variables = camelCase
-#define SCREENX 800
-#define SCREENY 800
-#define ENTITY_MAX 2000
-#define DEBUG false
-#define EMAX_CRASH false
 Point DoublePointToPoint(DoublePoint d){
 	return(Point({ int(d.x) , int(d.y) }));
 }
@@ -48,5 +43,3 @@ void BackgroundScreen::Init(std::string windowName, int fps, std::string backgro
 	}
 	std::cout << std::endl << "Initialization Finished" << std::endl;
 }
-
-	
