@@ -6,13 +6,23 @@
 // Macros / global variables = SNAKE_CASE_CAPS
 // Functions / classes = PascalCase
 // Variables = camelCase
-#define SCREENX 800
-#define SCREENY 800
+#define SCREENX 640
+#define SCREENY 640
 #define ENTITY_MAX 2000
 #define DEBUG false
+#define DRAW_DEBUG false
+// ^^ debug for specifically drawing hitboxes, which spams console and renders a lot of other debug output unreadable with a lot of entities, but still useful.
 #define EMAX_CRASH false
-struct Point { int x; int y; };
-struct DoublePoint { double x; double y; };
+class Point {
+public :
+	 int x;
+	 int y;
+};
+class DoublePoint {
+public :
+	 int x;
+	 int y;
+};
 class BackgroundScreen {
 public:
 	bool backgroundIsText;

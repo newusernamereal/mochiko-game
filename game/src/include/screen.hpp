@@ -6,10 +6,11 @@
 class Screen : public BackgroundScreen {
 public:
 	std::vector<EntityContainer> entities;
-	std::vector<EntityContainer> barrier;
+	std::vector<EntityContainer> barriers;
 	double tileSizeX = 1;
 	double tileSizeY = 1;
 	int size = 1;
+	int width = 1;
 	Screen(void) {}
 	Screen(Texture2D backin, std::vector<EntityContainer> entin);
 	void Load(void);

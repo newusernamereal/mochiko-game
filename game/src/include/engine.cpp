@@ -3,10 +3,16 @@
 // Functions / classes = PascalCase
 // Variables = camelCase
 Point DoublePointToPoint(DoublePoint d){
-	return(Point({ int(d.x) , int(d.y) }));
+	Point ret;
+	ret.x = d.x;
+	ret.y = d.y;
+	return ret;
 }
 DoublePoint PointToDoublePoint(Point p){
-	return(DoublePoint({ double(p.x) , double(p.y) }));
+	DoublePoint ret;
+	ret.x = p.x;
+	ret.y = p.y;
+	return ret;
 }
 bool ColorsEqual(Color c1, Color c2){
 	if(c1.r == c2.r && c1.g == c2.g && c1.b == c2.b) {

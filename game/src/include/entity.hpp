@@ -153,6 +153,7 @@ void clearEntities(void);
 void clearEntitiesExceptFirst(void);
 
 void DrawEntity(int k);
+void DrawEntity(Entity ent);
 void DrawEntities(void);
 void MoveEntities(void);
 #endif

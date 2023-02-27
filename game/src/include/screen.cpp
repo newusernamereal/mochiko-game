@@ -27,7 +27,7 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 		std::string currentLine;
 		std::string currentNumber;
 		int xcounter;
-		barrier.clear();
+		barriers.clear();
 		EntityContainer empty;
 		currentNumber = "0";
 		int size;
@@ -66,8 +66,8 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 				}
 			}
 		}
-		//(data.size() - (size + 1)) to data.size() - 2 is all tile data
-		for (int y = (data.size() - (size)); y < data.size() - 1; y++) {
+		//(data.size() - (size + 1)) to data.size() - 1 is all tile data
+		for (int y = (data.size() - (size)); y < data.size(); y++) {
 			xcounter = 0;
 			for (int x = 0; x < data[y].size(); x++) {
 				if (data[y][x] == 'p') {
@@ -104,7 +104,7 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 					empty.triggerID = 0;
 					empty.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter* SCREENX / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENX / size, SCREENY / size));
 					empty.isTrigger = true;
-					barrier.push_back(empty);
+					barriers.push_back(empty);
 				}
 				else if (data[y][x] == ',') {
 					if (stoi(currentNumber)) {
@@ -124,26 +124,27 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 				}
 			}
 		}
+		width = xcounter;
 	}
 bool Screen::CheckMove(Point to) {
-		for (int i = 0; i < barrier.size(); i++) {
-			if (barrier[i].Colliding(to)) {
+		for (int i = 0; i < barriers.size(); i++) {
+			if (barriers[i].Colliding(to)) {
 				return false;
 			}
 		}
 		return true;
 	}
 bool Screen::CheckMove(EntityContainer to) {
-		for (int i = 0; i < barrier.size(); i++) {
-			if (barrier[i].Colliding(to)) {
+		for (int i = 0; i < barriers.size(); i++) {
+			if (barriers[i].Colliding(to)) {
 				return false;
 			}
 		}
 		return true;
 	}
 bool Screen::CheckMove(EntityHitbox to) {
-	for (int i = 0; i < barrier.size(); i++) {
-		if (barrier[i].Colliding(to)) {
+	for (int i = 0; i < barriers.size(); i++) {
+		if (barriers[i].Colliding(to)) {
 			return false;
 		}
 	}
