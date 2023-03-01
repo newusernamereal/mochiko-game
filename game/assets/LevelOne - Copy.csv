@@ -15,5 +15,5 @@ assets/pig_right.png
 [2]0,0,0,0,0,[1]0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 [2]0,0,0,0,0,[1]0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 [2]0,0,0,0,0,[1]0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-[2]p0,0,0,{Ive heard rumours that The Karens are jailing\npeople who dare speak against them...}6,7,[1]0,"{Id go confront them, but its too\nfar east for me to even\nthink about trying}8",9,0,0,0,0,0,0,0,0,0,{EAST: THE KARENS\nWEST: NOTHING\nSOUTH: BONES\nNORTH: THE LUNAR SURFACE}5,0,0,
+[2]p0,0,0,{Ive heard rumours that The Karens are jailing\npeople who dare speak against them...}6,7,0,"{Id go confront them, but it’s too\nfar east for me to even\nthink about trying}8",9,0,0,0,0,0,0,0,0,0,{EAST: THE KARENS\nWEST: NOTHING\nSOUTH: BONES\nNORTH: THE LUNAR SURFACE},0,0,
 b4,b4,b4,b4,b4,b4,b4,b4,b4,b4,b4,b4,b4,b4,b4,b4,b4,b4,b4,b4,

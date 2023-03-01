@@ -11,6 +11,7 @@ public:
 	double tileSizeY = 1;
 	int size = 1;
 	int width = 1;
+	std::string fileName;
 	Screen(void) {}
 	Screen(Texture2D backin, std::vector<EntityContainer> entin);
 	void Load(void);

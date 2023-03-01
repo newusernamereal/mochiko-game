@@ -44,33 +44,35 @@ Entity::Entity(EntityContainer in) {
 	ent = &in;
 }
 void DrawEntity(int k){
-	if (!LOADED_ENTITIES[k].isTrigger) {
-		for (int i = 0; i < LOADED_ENTITIES[k].hitboxes.size(); i++) {
-			DrawTextureRec(LOADED_ENTITIES[k].hitboxTexts[i],
-				{ 0 , 0 , static_cast<float>(LOADED_ENTITIES[k].hitboxes[i].width), static_cast<float>(LOADED_ENTITIES[k].hitboxes[i].height) },
-				{ static_cast<float>(LOADED_ENTITIES[k].hitboxes[i].pos.x) , static_cast<float>(LOADED_ENTITIES[k].hitboxes[i].pos.y) },
-				LOADED_ENTITIES[k].tint);
+	DrawEntity(LOADED_ENTITIES[k], k);
+}
+void DrawEntity(Entity ent){
+	DrawEntity(*ent.ent);
+}
+void DrawEntity(EntityContainer ent, int k){
+	if(!ent.hitboxes.size() && !DEBUG){
+		return;
+	}
+	if(ent.dontDraw){
+		return;
+	}
+	for (int i = 0; i < ent.hitboxes.size(); i++) {
+		DrawTextureRec(ent.hitboxTexts[i],
+			{ ent.offset.x , ent.offset.y , ent.hitboxes[i].width, ent.hitboxes[i].height },
+			{ ent.hitboxes[i].pos.x , ent.hitboxes[i].pos.y },
+			ent.tint);
 			if (DRAW_DEBUG) {
-				LOADED_ENTITIES[k].debugDrawCounter += GetFrameTime();
-				if (LOADED_ENTITIES[k].debugDrawCounter >= 1) { // so console doesnt get spammed
-					LOADED_ENTITIES[k].debugDrawCounter = 0;
-					std::cout << "At Draw : Entity : " << k << " Hitbox : " << i << " " << LOADED_ENTITIES[k].hitboxes[i].pos.x << " " << LOADED_ENTITIES[k].hitboxes[i].pos.y << std::endl;
+				ent.debugDrawCounter += GetFrameTime();
+				if (ent.debugDrawCounter >= 1) { // so console doesnt get spammed
+					ent.debugDrawCounter = 0;
+					std::cout << "At Draw : Entity : " << k << " Hitbox : " << i << " " << ent.hitboxes[i].pos.x << " " << ent.hitboxes[i].pos.y << std::endl;
 				}
 			}
 			if (DEBUG){
 				std::string name;
 				name = std::to_string(k) + "." + std::to_string(i);
-				DrawText(name.c_str(), LOADED_ENTITIES[k].hitboxes[i].pos.x, LOADED_ENTITIES[k].hitboxes[i].pos.y, 20, BLACK);
+				DrawText(name.c_str(), ent.hitboxes[i].pos.x, ent.hitboxes[i].pos.y, 20, BLACK);
 			}
-		}
-	}
-}
-void DrawEntity(Entity ent){
-	for (int i = 0; i < ent.ent->hitboxes.size(); i++) {
-		DrawTextureRec(ent.hitboxTexts[i],
-			{ 0 , 0 , static_cast<float>(ent.hitboxes[i].width), static_cast<float>(ent.hitboxes[i].height) },
-			{ static_cast<float>(ent.hitboxes[i].pos.x) , static_cast<float>(ent.hitboxes[i].pos.y) },
-			ent.tint());
 	}
 }
 void DrawEntities() {
@@ -82,7 +84,7 @@ void DrawEntities() {
 }
 void MoveEntities() {
 	for (int i = 0; i < LOADED_ENTITIES_HEAD; i++) {
-		if (!LOADED_ENTITIES[i].isTrigger) {
+		if (!LOADED_ENTITIES[i].trigger) {
 			for (int k = 0; k < LOADED_ENTITIES[k].hitboxes.size(); k++) {
 				LOADED_ENTITIES[i].hitboxes[k].Move();
 			}

@@ -17,6 +17,7 @@ void Screen::Load() {
 	}
 }
 void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
+		(*this).fileName = fileName;
 		std::ifstream file;
 		file.open(fileName);
 		std::vector<std::string> data;
@@ -29,6 +30,7 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 		int xcounter;
 		barriers.clear();
 		EntityContainer empty;
+		EntityContainer emptyBarrier;
 		currentNumber = "0";
 		int size;
 		if (file.is_open()) {
@@ -42,8 +44,11 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 		file.close();
 		size = std::stoi(data[0]); // first line is the size of the grid
 		this->size = size;
-		tileSizeX = (float)SCREENX / size;
+		tileSizeX = (float)SCREENY / size;
 		tileSizeY = (float)SCREENY / size;
+		if(SQUARE_TILES){
+			tileSizeX = tileSizeY;
+		}
 		// 1 to (data.size() - (size + 1)) is all textures
 		for (int i = 1; i <= (data.size() - (size + 1)); i++) {
 			for (int k = 0; k < loadedTexts.size(); k++) {
@@ -75,7 +80,8 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 						if (entities[0].hitboxes.size()) {
 							if (player.x == -1 && player.y == -1) {
 								entities[0].hitboxes[0].pos = { static_cast<double>(xcounter * SCREENX / size), static_cast<double>((y - (data.size() - (size))) * SCREENY / size) };
-								std::cout << "\n\nPlayer X: " << entities[0].hitboxes[0].pos.x << "\nPlayer Y: " << entities[0].hitboxes[0].pos.y << "\n\n";
+								if (DEBUG)
+									std::cout << "\n\nPlayer X: " << entities[0].hitboxes[0].pos.x << "\nPlayer Y: " << entities[0].hitboxes[0].pos.y << "\n\n";
 							}
 							else {
 								entities[0].hitboxes[0].pos = { player.x * SCREENX / size, player.y * SCREENY / size };
@@ -90,31 +96,53 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 						currentNumber += data[y][x];
 						x++;
 					}
-					empty.hitboxTexts.clear();
-					empty.hitboxes.clear();
-					empty.isTrigger = true;
+//					empty.hitboxTexts.clear();
+//					empty.hitboxes.clear();
+					empty.trigger = true;
 					empty.triggerID = std::stoi(currentNumber);
 					currentNumber = "0";
-					empty.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter* SCREENX / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENX / size, SCREENY / size));
-					entities.push_back(empty);
+//					empty.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter* SCREENX / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENX / size, SCREENY / size));
+//					entities.push_back(empty);
+				}
+				else if (data[y][x] == '{') {
+					currentNumber = "";
+					x++;
+					while (data[y][x] != '}') {
+						currentNumber += data[y][x];
+						x++;
+					}
+					while (currentNumber.find("\\n") != std::string::npos) {
+						currentNumber.replace(currentNumber.find("\\n"), 2, "\n");
+						std::cout << currentNumber << std::endl;
+					}
+					empty.signText = currentNumber;
+					currentNumber = "0";
 				}
 				else if (data[y][x] == 'b') {
-					empty.hitboxTexts.clear();
-					empty.hitboxes.clear();
-					empty.triggerID = 0;
-					empty.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter* SCREENX / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENX / size, SCREENY / size));
-					empty.isTrigger = true;
-					barriers.push_back(empty);
+					emptyBarrier.hitboxTexts.clear();
+					emptyBarrier.hitboxes.clear();
+					emptyBarrier.triggerID = 0;
+					if(!SQUARE_TILES)
+						emptyBarrier.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter * SCREENY / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENX / size, SCREENY / size));
+					if(SQUARE_TILES)
+						emptyBarrier.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter * SCREENY / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENY / size, SCREENY / size));
+					emptyBarrier.trigger = true;
+					barriers.push_back(emptyBarrier);
 				}
 				else if (data[y][x] == ',') {
-					if (stoi(currentNumber)) {
+					if (stoi(currentNumber) || empty.trigger || empty.signText != "") {
+						if (stoi(currentNumber))
+							empty.hitboxTexts.push_back(expectedTexts[stoi(currentNumber) - 1]);
+						if(!SQUARE_TILES)
+							empty.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter * SCREENY / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENX / size, SCREENY / size));
+						if(SQUARE_TILES)
+							empty.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter * SCREENY / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENY / size, SCREENY / size));
+						entities.push_back(empty);
 						empty.hitboxTexts.clear();
 						empty.hitboxes.clear();
-						empty.isTrigger = false;
+						empty.trigger = false;
 						empty.triggerID = 0;
-						empty.hitboxTexts.push_back(expectedTexts[stoi(currentNumber) - 1]);
-						empty.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter * SCREENX / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENX / size, SCREENY / size));
-						entities.push_back(empty);
+						empty.signText = "";
 					}
 					currentNumber = " ";
 					xcounter++;

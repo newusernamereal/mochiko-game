@@ -16,14 +16,17 @@ bool started = false;
 bool dead = false;
 
 const double GRAVITY = 1450; // downwards acceleration from gravity, in px/s^2
-const double JUMPSTR = 700; // upwards (one time) velocity gain from jumping, in px/s
-const double MOVESPD = 300; // sideways acceleration from moving, in px/s^2
+const double JUMPSTR = 400; // upwards (one time) velocity gain from jumping, in px/s
+const double MOVESPD = 2; // sideways velocity from moving, in px/frame
 
 const int TEXTUREBOX = 64; // size of the texture hitbox, in (px)^2 (not a square measurement)
 const int COLLISIONBOXH = 60; // height of the collision hitbox, in px
-const int COLLISIONBOXW = 50; // width of the collision hitbox in px
+const int COLLISIONBOXW = 36; // width of the collision hitbox in px
 
-const double SCROLLSTR = 1; // how strong the scroll is, in tiles
+double SCROLLSTR = 1; // how strong the scroll is, in tiles/frame
+
+int SIGNFONTSIZE = 20; // how big the sign's font size is, in px
+int SIGNELEVATION = 150; // how high the sign text appears above the sign, in px
 
 void Shmove();
 bool OutOfBounds(DoublePoint in);
@@ -35,17 +38,21 @@ bool InGround(Point in);
 void SnapToFloor();
 bool WallAboveHead();
 void DecelerateX();
+void _MoveSideways();
 
-void ChangeTexture();
+void ChangeTexture(bool right);
 
 void ScrollScreen(bool reset = false);
 void MoveEverything(double dir);
+
+void ReadSign();
 
 void StartScreen();
 void DeathScreen();
 void InitGame();
 
 void UpdateDrawFrame(){
+	std::cout << currentScreen.tileSizeX << std::endl;
 	if(!started){
 		StartScreen();
 		return;
@@ -61,6 +68,7 @@ void UpdateDrawFrame(){
 	player.hitboxes[1].pos = DoublePoint{ player.hitboxes[0].pos.x -  0.5 * (TEXTUREBOX - COLLISIONBOXW) , player.hitboxes[0].pos.y -  0.5 * (TEXTUREBOX - COLLISIONBOXH) };
 	BeginDrawing();
 		DrawEntities();
+		ReadSign();
 		currentScreen.Draw();
 	EndDrawing();
 }
@@ -83,22 +91,6 @@ void Shmove(){
 	static bool bonked = false;
 	static double timeOnGround = 0;
 	bool movingSideways = false;
-	// x stuff
-	if(IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)){
-		xVelo = MOVESPD;
-		movingSideways = true;
-	}
-	if(IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)){
-		xVelo = (-1 * MOVESPD);
-		movingSideways = true;
-	}
-	if (!movingSideways){
-		DecelerateX();
-	}
-	EntityHitbox checkX(DoublePoint{player.hitboxes[0].pos.x + xVelo * GetFrameTime(), player.hitboxes[0].pos.y},COLLISIONBOXW,COLLISIONBOXH);
-	if(currentScreen.CheckMove(checkX) && !OutOfBounds(checkX)){
-		player.hitboxes[0].pos = DoublePoint{player.hitboxes[0].pos.x + xVelo * GetFrameTime(), player.hitboxes[0].pos.y};
-	}
 	// y stuff
 	if(!OnGround()){
 		yVelo -= (GRAVITY * GetFrameTime());
@@ -108,19 +100,23 @@ void Shmove(){
 		yVelo = 0;
 		timeOnGround += GetFrameTime();
 	}
-	if((IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) && OnGround() && timeOnGround > 0.1){
+	if(!OnGround()){
+		timeOnGround = 0;
+	}
+	if((IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) && OnGround() && timeOnGround){
 		if(DEBUG)
 			std::cout << "Jumped" << std::endl;
 		yVelo = JUMPSTR;
 	}
 	if(InGround()){
-		std::cout << "Mole" << std::endl;
-		timeOnGround = 0;
+		if(DEBUG)
+			std::cout << "Mole" << std::endl;
 		SnapToFloor();
 	}
 	else if (WallAboveHead()){
 		if (!bonked){
-			std::cout << "Bonk" << std::endl;
+			if(DEBUG)
+				std::cout << "Bonk" << std::endl;
 			bonked = true;
 			yVelo *= -1;
 		}
@@ -129,6 +125,23 @@ void Shmove(){
 	else{
 		bonked = false;
 		player.hitboxes[0].pos = DoublePoint{ player.hitboxes[0].pos.x, player.hitboxes[0].pos.y - yVelo * GetFrameTime() };
+	}
+	// x stuff
+	if(IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)){
+		xVelo = (-1 * MOVESPD);
+		movingSideways = true;
+		_MoveSideways();
+	}
+	if(IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)){
+		xVelo = MOVESPD;
+		movingSideways = true;
+		_MoveSideways();
+	}
+	if (!movingSideways){
+		DecelerateX();
+	}
+	if(movingSideways){
+		xVelo < 0 ? ChangeTexture(false) : ChangeTexture(true);
 	}
 }
 
@@ -155,7 +168,7 @@ bool OutOfBounds(EntityHitbox in){
 }
 
 bool OnGround(){
-	return ((player.hitboxes[0].pos.y + COLLISIONBOXH == SCREENY) || (!currentScreen.CheckMove(EntityHitbox(player.hitboxes[0].pos, COLLISIONBOXW,COLLISIONBOXH + 1))));
+	return (player.hitboxes[0].pos.y + COLLISIONBOXH == SCREENY) || (!currentScreen.CheckMove(EntityHitbox(DoublePoint{player.hitboxes[0].pos.x,player.hitboxes[0].pos.y + COLLISIONBOXH}, COLLISIONBOXW,1)));
 }
 
 bool WallAboveHead(){
@@ -163,7 +176,7 @@ bool WallAboveHead(){
 }
 
 bool OnGround(Point in){
-	return (in.y + COLLISIONBOXH == SCREENY) || (!currentScreen.CheckMove(EntityHitbox(in, COLLISIONBOXW,COLLISIONBOXH + 1)));
+	return (in.y + COLLISIONBOXH == SCREENY) || (!currentScreen.CheckMove(EntityHitbox(DoublePoint{in.x,in.y + COLLISIONBOXH}, COLLISIONBOXW,1)));
 }
 
 bool InGround(){
@@ -223,19 +236,20 @@ void DecelerateX(){
 
 void ScrollScreen(bool reset){
 	static double pos = 0;
+	double upperBound = (currentScreen.width - currentScreen.size) * ((double)SCREENY/(double)SCREENX);
 	if (reset){
 		pos = 0;
 	}
-	if(TriggerCollision(player) == 1 && pos + SCROLLSTR <= currentScreen.width - currentScreen.size){ // player is on the right border; move everything left
-		if(DEBUG)
-			std::cout << "Scrolling left because " << pos + SCROLLSTR << " <= " << currentScreen.width - currentScreen.size << std::endl;
+	if(TriggerCollision(player) == 1 && pos + SCROLLSTR <= upperBound){ // player is on the right border; move everything left
+		if(SCROLL_DEBUG)
+			std::cout << "Scrolling left because " << pos + SCROLLSTR << " <= " << upperBound << std::endl;
 		pos += SCROLLSTR;
 		MoveEverything(-1 * SCROLLSTR);
 		return;
 	}
-	if(TriggerCollision(player) == 2 && pos - SCROLLSTR <= currentScreen.width - currentScreen.size && pos - SCROLLSTR >= 0){ // player is on the left border; move everything right
-		if(DEBUG)
-			std::cout << "Scrolling right because " << pos - SCROLLSTR << " <= " << currentScreen.width - currentScreen.size << std::endl;
+	if(TriggerCollision(player) == 2 && pos - SCROLLSTR <= upperBound && pos - SCROLLSTR >= 0){ // player is on the left border; move everything right
+		if(SCROLL_DEBUG)
+			std::cout << "Scrolling right because " << pos - SCROLLSTR << " <= " << upperBound << std::endl;
 		pos -= SCROLLSTR;
 		MoveEverything(SCROLLSTR);
 		return;
@@ -263,16 +277,18 @@ void MoveEverything(double dir){
 
 void StartScreen(){
 	static Entity startText;
+
 	static double anim = 0;
-	static int directionCounter = 0;
+	static int frameCounter = 0;
 	static bool up = true;
+
 	static bool init = false;
 	if (!init){
 		startText.addTexture(LoadTexture("assets/start.png"));
-		startText.addBox(EntityHitbox(Point{74,170},492,300));
+		startText.addBox(EntityHitbox(Point{266,138},492,300));
 		init = true;
 	}
-	if(IsKeyPressed(KEY_SPACE)){
+	if(IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)){
 		InitGame();
 		started = true;
 		return;
@@ -280,7 +296,7 @@ void StartScreen(){
 	anim += GetFrameTime();
 	if(anim >= 0.2){
 		anim = 0;
-		directionCounter++;
+		frameCounter++;
 		if(up){
 			startText.hitboxes[0].pos.y -= 5;
 		}
@@ -288,8 +304,8 @@ void StartScreen(){
 			startText.hitboxes[0].pos.y += 5;
 		}
 	}
-	if(directionCounter > 5){
-		directionCounter = 0;
+	if(frameCounter > 5){
+		frameCounter = 0;
 		up = !up;
 	}
 	BeginDrawing();
@@ -300,29 +316,68 @@ void StartScreen(){
 
 void DeathScreen(){
 	static Entity deathText;
-	static double anim = 0;
-	static bool up = true;
-	static int directionCounter = 0;
-	static bool init = false;
+	static Entity plosion;
 	static Texture2D text = LoadTexture("assets/death.png");
+	static Texture2D plosionText = LoadTexture("assets/ploded.png");
+
+	static double anim = 0;
+	static int frameCounter = 0;
+	static double frameTime = 0.2f;
+
+	static bool up = true;
+	static bool init = false;
+	static bool alive = false;
+	static bool finishedAnim = false;
 	if (!init){
 		deathText.addTexture(text);
-		deathText.addBox(EntityHitbox(Point{128,170},384,300));
+		plosion.addTexture(plosionText);
+		deathText.addBox(EntityHitbox(Point{320,138},384,300));
+		plosion.addBox(EntityHitbox(DoublePoint{ player.hitboxes[1].pos.x - 32, player.hitboxes[1].pos.y - 32 },128,128));
+		deathText.DontDraw(true);
+		player.DontDraw(true);
 		init = true;
 	}
-	if(IsKeyPressed(KEY_SPACE)){
+	if (!alive){
+		plosion.hitboxes[0] = (EntityHitbox(DoublePoint{ player.hitboxes[1].pos.x - 32, player.hitboxes[1].pos.y - 32 },128,128));
+	}
+	if(!finishedAnim){
+		alive = true;
+		anim += GetFrameTime();
+		if (anim > frameTime){
+			frameCounter++;
+			anim = 0;
+		}
+		if (frameCounter > 3){
+			finishedAnim = true;
+			deathText.DontDraw(false);
+			player.DontDraw(false);
+			anim = 0;
+			frameCounter = 0;
+			plosion.Offset()->x = 0;
+		}
+		plosion.Offset()->x = 128 * frameCounter;
+		BeginDrawing();
+			DrawEntities();
+			DrawEntity(plosion);
+			currentScreen.Draw();
+		EndDrawing();
+		return;
+	}
+	if(IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)){
 		InitGame();
 		dead = false;
+		alive = true;
+		frameCounter = 0;
 		anim = 0;
 		up = true;
-		directionCounter = 0;
 		init = false;
+		finishedAnim = false;
 		return;
 	}
 	anim += GetFrameTime();
-	if(anim >= 0.2){
+	if(anim >= frameTime){
 		anim = 0;
-		directionCounter++;
+		frameCounter++;
 		if(up){
 			deathText.hitboxes[0].pos.y -= 5;
 		}
@@ -330,8 +385,8 @@ void DeathScreen(){
 			deathText.hitboxes[0].pos.y += 5;
 		}
 	}
-	if(directionCounter > 5){
-		directionCounter = 0;
+	if(frameCounter > 5){
+		frameCounter = 0;
 		up = !up;
 	}
 	BeginDrawing();
@@ -343,7 +398,7 @@ void DeathScreen(){
 void InitGame(){
 	if(!started){
 		player.addTexture(LoadTexture("assets/transparent.png")); // transparent texture for the collision box
-		player.addTexture(LoadTexture("assets/chicken_right.png")); // actual texture for the drawing box
+		player.addTexture(LoadTexture("assets/chicken.png")); // actual texture for the drawing box
 		player.addBox(EntityHitbox((DoublePoint) { 0.5 * (TEXTUREBOX - COLLISIONBOXW), 0.5 * (TEXTUREBOX - COLLISIONBOXH) }, COLLISIONBOXW, COLLISIONBOXH)); // collision box
 		player.addBox(EntityHitbox((DoublePoint) { 0, 0 }, TEXTUREBOX, TEXTUREBOX)); // drawing box
 		currentScreen.entities.push_back(*player.ent);
@@ -352,10 +407,40 @@ void InitGame(){
 	clearEntitiesExceptFirst();
 	currentScreen.entities.clear();
 	currentScreen.entities.push_back(*player.ent);
-	currentScreen.ReadFromFile("assets/LevelOne.ce");
+
+	currentScreen.ReadFromFile(currentScreen.fileName);
 	currentScreen.Load();
 	player.hitboxes[0].pos.x += 0.5 * (TEXTUREBOX - COLLISIONBOXW);
 	player.hitboxes[0].pos.y += 0.5 * (TEXTUREBOX - COLLISIONBOXH);
 	currentScreen.backgroundTint = RED;
 	ScrollScreen(true);
+	SCROLLSTR = (2.0f / currentScreen.tileSizeX);
+}
+
+void ChangeTexture(bool right){
+	if(right){
+		player.Offset()->x = 0;
+		return;
+	}
+	player.Offset()->x = 64;
+}
+
+void _MoveSideways(){
+	EntityHitbox checkX(DoublePoint{player.hitboxes[0].pos.x + xVelo, player.hitboxes[0].pos.y},COLLISIONBOXW,COLLISIONBOXH);
+	if(currentScreen.CheckMove(checkX) && !OutOfBounds(checkX)){
+		player.hitboxes[0].pos = DoublePoint{player.hitboxes[0].pos.x + xVelo, player.hitboxes[0].pos.y};
+	}
+}
+
+void ReadSign(){
+	for(int i = 0; i < LOADED_ENTITIES_HEAD; i++){
+		if (LOADED_ENTITIES[i].signText != ""){
+			if (LOADED_ENTITIES[i].Colliding(player.hitboxes[0])){
+				DrawText(LOADED_ENTITIES[i].signText.c_str(),
+				LOADED_ENTITIES[i].hitboxes[0].pos.x - (0.25 * MeasureText(LOADED_ENTITIES[i].signText.c_str(), SIGNFONTSIZE)) ,
+				LOADED_ENTITIES[i].hitboxes[0].pos.y - SIGNELEVATION, SIGNFONTSIZE , WHITE);
+			}
+			//std::cout << LOADED_ENTITIES[i].signText << std::endl;
+		}
+	}
 }

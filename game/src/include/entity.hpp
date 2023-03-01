@@ -5,49 +5,48 @@
 #include <cmath>
 class EntityHitbox {
 public:
-	double speedX = 0;
-	double speedY = 0;
-	DoublePoint pos; // topleft corner
+	DoublePoint speed = { 0 , 0 }; // speed, in px/s
+	DoublePoint pos = { 0 , 0 }; // topleft corner
 	int width = 1;
 	int height = 1;
-	double speed = 1; // unused
 	double debugMoveCounter = 0;
 	EntityHitbox(double posX, double posY, int widthin, int len, double speedin = 0) {
 		pos.x = posX;
 		pos.y = posY;
 		width = widthin;
 		height = len;
-		speed = speedin;
+		speed = DoublePoint{ speedin, speedin };
 	}
 	EntityHitbox(DoublePoint posIn, int widthin, int len, double speedin = 0) {
 		pos = posIn;
 		width = widthin;
 		height = len;
-		speed = speedin;
+		speed = DoublePoint{ speedin, speedin };
 	}
 	EntityHitbox(Point posIn, int widthin, int len, double speedin = 0) {
 		pos = PointToDoublePoint(posIn);
 		width = widthin;
 		height = len;
-		speed = speedin;
+		speed = DoublePoint{ speedin, speedin };
 	}
-	EntityHitbox() {
-		pos = { 0,0 };
-	}
+	EntityHitbox(){}
 	inline void Move() {
-		pos.x += GetFrameTime() * speedX;
-		pos.y += GetFrameTime() * speedY;
+		pos.x += GetFrameTime() * speed.x;
+		pos.y += GetFrameTime() * speed.y;
 	}
 }; // hitboxes, no drawing
 class EntityContainer { // container class for entities
 public:
-	bool isTrigger = false;
+	bool trigger = false;
 	int triggerID = 0;
 	std::vector<EntityHitbox> hitboxes;
 	std::vector<Texture2D> hitboxTexts;
 	Color tint = WHITE;
 	double debugDrawCounter = 0;
 	bool Colliding(DoublePoint p);
+	Point offset = { 0 , 0 }; // offset of the texture, in px
+	std::string signText;
+	bool dontDraw = false;
 	inline bool Colliding(Point p) {
 		return(Colliding(PointToDoublePoint(p)));
 	}
@@ -99,6 +98,8 @@ inline void clearEntitiesExceptFirst() {
 class Entity { // this is so scuffed and i hate it dont hmu i will break down if you ask me about it
 public:
 	EntityContainer* ent;
+	EntityHitbox* hitboxes;
+	Texture2D* hitboxTexts;
 	Entity(void);
 	void AddToGArry(void);
 	Entity(EntityContainer in);
@@ -106,7 +107,7 @@ public:
 		ent->debugDrawCounter = in.ent->debugDrawCounter;
 		ent->hitboxes = in.ent->hitboxes;
 		ent->hitboxTexts = in.ent->hitboxTexts;
-		ent->isTrigger = in.ent->isTrigger;
+		ent->trigger = in.ent->trigger;
 		ent->tint = in.ent->tint;
 		return (*this);
 	}
@@ -130,8 +131,12 @@ public:
 	inline bool Colliding(EntityHitbox entin) { return (*ent).Colliding(entin); };
 	inline bool Colliding(Entity entin) { return (*ent).Colliding(*entin.ent); };
 	inline bool Colliding(EntityContainer entin) { return (*ent).Colliding(entin); };
-	inline void isTrigger(bool trigger) { (*ent).isTrigger = trigger; }
-	inline bool isTrigger() { return (*ent).isTrigger; }
+	inline void Trigger(bool trigger) { (*ent).trigger = trigger; }
+	inline bool Trigger() { return (*ent).trigger; }
+	inline bool DontDraw() { return (*ent).dontDraw; }
+	inline void DontDraw(bool dontDraw){ (*ent).dontDraw = dontDraw; }
+	inline void Offset(Point p){ ent->offset = p; }
+	inline Point* Offset(){ return &(ent->offset); }
 	inline void addBox(EntityHitbox in) {
 		ent->hitboxes.push_back(in);
 		hitboxes = ent->hitboxes.data();
@@ -144,8 +149,6 @@ public:
 	//	Texture2D* hitboxTexts(int x) { return &(ent->hitboxTexts[x]); }
 	inline Color tint() { return ent->tint; }
 	inline void tint(Color in) { ent->tint = in; }
-	EntityHitbox* hitboxes;
-	Texture2D* hitboxTexts;
 };
 
 void initEntityArr(void);
@@ -154,6 +157,7 @@ void clearEntitiesExceptFirst(void);
 
 void DrawEntity(int k);
 void DrawEntity(Entity ent);
+void DrawEntity(EntityContainer ent, int k = -1);
 void DrawEntities(void);
 void MoveEntities(void);
 #endif

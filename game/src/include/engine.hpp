@@ -6,13 +6,15 @@
 // Macros / global variables = SNAKE_CASE_CAPS
 // Functions / classes = PascalCase
 // Variables = camelCase
-#define SCREENX 640
-#define SCREENY 640
+#define SCREENX 1024
+#define SCREENY 576
 #define ENTITY_MAX 2000
 #define DEBUG false
 #define DRAW_DEBUG false
 // ^^ debug for specifically drawing hitboxes, which spams console and renders a lot of other debug output unreadable with a lot of entities, but still useful.
 #define EMAX_CRASH false
+#define SQUARE_TILES true
+// ^^ if true, tiles are square, allowing for a nonsquare resolution without stretching tiles
 class Point {
 public :
 	 int x;
