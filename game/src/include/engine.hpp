@@ -9,7 +9,7 @@
 #define SCREENX 1024
 #define SCREENY 576
 #define ENTITY_MAX 2000
-#define DEBUG false
+#define DEBUG true
 #define DRAW_DEBUG false
 // ^^ debug for specifically drawing hitboxes, which spams console and renders a lot of other debug output unreadable with a lot of entities, but still useful.
 #define EMAX_CRASH false

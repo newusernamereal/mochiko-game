@@ -17,7 +17,7 @@ bool dead = false;
 
 const double GRAVITY = 1450; // downwards acceleration from gravity, in px/s^2
 const double JUMPSTR = 400; // upwards (one time) velocity gain from jumping, in px/s
-const double MOVESPD = 2; // sideways velocity from moving, in px/frame
+const int MOVESPEED = 330; // sideways velocity from moving, in px/second
 
 const int TEXTUREBOX = 64; // size of the texture hitbox, in (px)^2 (not a square measurement)
 const int COLLISIONBOXH = 60; // height of the collision hitbox, in px
@@ -27,6 +27,8 @@ double SCROLLSTR = 1; // how strong the scroll is, in tiles/frame
 
 int SIGNFONTSIZE = 20; // how big the sign's font size is, in px
 int SIGNELEVATION = 150; // how high the sign text appears above the sign, in px
+
+int MOVESPD = MOVESPEED; // movespeed * DT rounded to the nearest integer because fractions don't play nice. might cause problems if people use crazy high (360hz+) screens but i really don't care
 
 void Shmove();
 bool OutOfBounds(DoublePoint in);
@@ -52,7 +54,8 @@ void DeathScreen();
 void InitGame();
 
 void UpdateDrawFrame(){
-	std::cout << currentScreen.tileSizeX << std::endl;
+	MOVESPD = (MOVESPEED * GetFrameTime());
+	SCROLLSTR = (MOVESPD / currentScreen.tileSizeX);
 	if(!started){
 		StartScreen();
 		return;
@@ -91,15 +94,8 @@ void Shmove(){
 	static bool bonked = false;
 	static double timeOnGround = 0;
 	bool movingSideways = false;
+	bool jumping = false;
 	// y stuff
-	if(!OnGround()){
-		yVelo -= (GRAVITY * GetFrameTime());
-		timeOnGround = 0;
-	}
-	else{
-		yVelo = 0;
-		timeOnGround += GetFrameTime();
-	}
 	if(!OnGround()){
 		timeOnGround = 0;
 	}
@@ -107,11 +103,8 @@ void Shmove(){
 		if(DEBUG)
 			std::cout << "Jumped" << std::endl;
 		yVelo = JUMPSTR;
-	}
-	if(InGround()){
-		if(DEBUG)
-			std::cout << "Mole" << std::endl;
-		SnapToFloor();
+		timeOnGround = 0;
+		jumping = true;
 	}
 	else if (WallAboveHead()){
 		if (!bonked){
@@ -120,11 +113,23 @@ void Shmove(){
 			bonked = true;
 			yVelo *= -1;
 		}
-		player.hitboxes[0].pos = DoublePoint{ player.hitboxes[0].pos.x, player.hitboxes[0].pos.y - yVelo * GetFrameTime() };
 	}
 	else{
 		bonked = false;
-		player.hitboxes[0].pos = DoublePoint{ player.hitboxes[0].pos.x, player.hitboxes[0].pos.y - yVelo * GetFrameTime() };
+	}	
+	if(!OnGround()){
+		yVelo -= (GRAVITY * GetFrameTime());
+		timeOnGround = 0;
+	}
+	else{
+		timeOnGround += GetFrameTime();
+	}
+	player.hitboxes[0].pos = DoublePoint{ player.hitboxes[0].pos.x, player.hitboxes[0].pos.y - yVelo * GetFrameTime() };
+	while(InGround()){
+		player.hitboxes[0].pos = DoublePoint{ player.hitboxes[0].pos.x, player.hitboxes[0].pos.y - 1 };
+	}
+	if(OnGround()){
+		yVelo = 0;
 	}
 	// x stuff
 	if(IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)){
@@ -187,25 +192,27 @@ bool InGround(Point in){
 	return (in.y + COLLISIONBOXH > SCREENY) || (currentScreen.CheckMove(EntityHitbox(in, COLLISIONBOXW,COLLISIONBOXH)));
 }
 
-void SnapToFloor(){
+ void SnapToFloor(){
 	yVelo = 0;
 	xVelo = 0;
+	player.hitboxes[0].pos.y -= currentScreen.tileSizeY;
 	if(DEBUG)
 		std::cout << "trying to snap\n";
 	int searchUp = player.hitboxes[0].pos.y;
 	int searchDown = player.hitboxes[0].pos.y;
 	for(int i = 0; i < std::max(player.hitboxes[0].pos.y, SCREENY - player.hitboxes[0].pos.y); i++){
 		// find the nearest floor, starting from the feet
-		if(OnGround(Point{ player.hitboxes[0].pos.x , searchUp })){
+		if(OnGround(Point{ player.hitboxes[0].pos.x , searchUp }) && !InGround(Point{ player.hitboxes[0].pos.x , searchUp })){
+			std::cout << "dsa" << std::endl;
 			if(DEBUG)
 				std::cout << "found a floor up: " << searchUp << "\n";
-			player.hitboxes[0].pos.y = searchUp - 1;
+			player.hitboxes[0].pos.y = searchUp;
 			return;
 		}
 		if(OnGround(Point{ player.hitboxes[0].pos.x, searchDown })){
 			if(DEBUG)
 				std::cout << "found a floor down: " << searchDown << "\n";
-			player.hitboxes[0].pos.y = searchDown + 1;
+			player.hitboxes[0].pos.y = searchDown;
 			return;
 		}
 		searchDown++;
@@ -414,7 +421,6 @@ void InitGame(){
 	player.hitboxes[0].pos.y += 0.5 * (TEXTUREBOX - COLLISIONBOXH);
 	currentScreen.backgroundTint = RED;
 	ScrollScreen(true);
-	SCROLLSTR = (2.0f / currentScreen.tileSizeX);
 }
 
 void ChangeTexture(bool right){
