@@ -27,7 +27,7 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 		bool flag = false;
 		std::string currentLine;
 		std::string currentNumber;
-		int xcounter;
+		int xcounter = 0;
 		barriers.clear();
 		EntityContainer empty;
 		EntityContainer emptyBarrier;
@@ -89,20 +89,16 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 						}
 					}
 				}
-				else if (data[y][x] == '[') { // this is an abomonation upon mankind, truly disgusting
+				else if (data[y][x] == '[') {
 					currentNumber = "0";
 					x++;
 					while (data[y][x] != ']') {
 						currentNumber += data[y][x];
 						x++;
 					}
-//					empty.hitboxTexts.clear();
-//					empty.hitboxes.clear();
 					empty.trigger = true;
 					empty.triggerID = std::stoi(currentNumber);
-					currentNumber = "0";
-//					empty.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter* SCREENX / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENX / size, SCREENY / size));
-//					entities.push_back(empty);
+					currentNumber = "0";				
 				}
 				else if (data[y][x] == '{') {
 					currentNumber = "";
@@ -113,7 +109,6 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 					}
 					while (currentNumber.find("\\n") != std::string::npos) {
 						currentNumber.replace(currentNumber.find("\\n"), 2, "\n");
-						std::cout << currentNumber << std::endl;
 					}
 					empty.signText = currentNumber;
 					currentNumber = "0";

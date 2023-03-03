@@ -3,9 +3,9 @@
 #include "include/screen.hpp"
 #include <iostream>
 #include <cmath>
-#include <emscripten/emscripten.h>
+//#include <emscripten/emscripten.h>
 
-#define SCROLL_DEBUG true
+#define SCROLL_DEBUG false
 
 Screen currentScreen;
 Entity player;
