@@ -36,7 +36,7 @@ BackgroundScreen::BackgroundScreen(std::string backgroundImage) {
 		backgroundIsText = true;
 	}
 }
-void BackgroundScreen::Init(std::string windowName, int fps, std::string backgroundImage) { // just using \n as a placeholder because it wont be in any file names
+void BackgroundScreen::Init(std::string windowName, int fps, std::string backgroundImage) {
 	std::cout << std::endl << "Starting Initialization" << std::endl;
 	InitWindow(SCREENX, SCREENY, windowName.c_str());
 	if (fps) {

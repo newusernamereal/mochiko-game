@@ -31,8 +31,8 @@ public:
 	}
 	EntityHitbox(){}
 	inline void Move() {
-		pos.x += GetFrameTime() * speed.x;
-		pos.y += GetFrameTime() * speed.y;
+		pos.x += speed.x;
+		pos.y += speed.y;
 	}
 }; // hitboxes, no drawing
 class EntityContainer { // container class for entities

@@ -1,9 +1,7 @@
-#include "include/engine.hpp"
-#include "include/entity.hpp"
 #include "include/screen.hpp"
 #include <iostream>
 #include <cmath>
-//#include <emscripten/emscripten.h>
+#include <emscripten/emscripten.h>
 
 #define SCROLL_DEBUG false
 
@@ -14,6 +12,8 @@ double xVelo = 0;
 
 bool started = false;
 bool dead = false;
+
+int AIDIFFICULTY = 1; // AI difficulty, affects movespeed and rate of fire
 
 const double GRAVITY = 1450; // downwards acceleration from gravity, in px/s^2
 const double JUMPSTR = 400; // upwards (one time) velocity gain from jumping, in px/s
@@ -48,20 +48,28 @@ void ScrollScreen(bool reset = false);
 void MoveEverything(double dir);
 
 void ReadSign();
+void FixTextures();
 
 void StartScreen();
 void DeathScreen();
 void InitGame();
 
+void UpdateKarens();
+void KarenAI(int ent);
+void AttackPlayer(int source);
+
 void UpdateDrawFrame(){
 	MOVESPD = (MOVESPEED * GetFrameTime());
 	SCROLLSTR = (MOVESPD / currentScreen.tileSizeX);
+	UpdateKarens();
+	MoveEntities();
 	if(!started){
 		StartScreen();
 		return;
 	}
 	if (TriggerCollision(player) == 3)
 		dead = true;
+
 	if(dead){
 		DeathScreen();
 		return;
@@ -77,6 +85,7 @@ void UpdateDrawFrame(){
 }
 
 int main(){
+	ChangeDirectory("../");
 	initEntityArr();
 	player.AddToGArry();
 	InitWindow(SCREENX, SCREENY, "Mochiko Platformer");
@@ -90,7 +99,7 @@ int main(){
 #endif
 }
 
-void Shmove(){
+void Shmove(){ // not proud of this one
 	static bool bonked = false;
 	static double timeOnGround = 0;
 	bool movingSideways = false;
@@ -139,7 +148,8 @@ void Shmove(){
 	}
 	if(IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)){
 		xVelo = MOVESPD;
-		movingSideways = true;
+		if(IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
+			movingSideways = true;
 		_MoveSideways();
 	}
 	if (!movingSideways){
@@ -150,7 +160,7 @@ void Shmove(){
 	}
 }
 
-bool OutOfBounds(DoublePoint in){
+inline bool OutOfBounds(DoublePoint in){
 	if(in.x > SCREENX || in.x < 0){
 		return true;
 	}
@@ -160,7 +170,7 @@ bool OutOfBounds(DoublePoint in){
 	return false;
 }
 
-bool OutOfBounds(EntityHitbox in){
+inline bool OutOfBounds(EntityHitbox in){
 	if(OutOfBounds(in.pos))
 		return true;
 	if(OutOfBounds(DoublePoint{in.pos.x, in.pos.y + in.height}))
@@ -172,27 +182,27 @@ bool OutOfBounds(EntityHitbox in){
 	return false;
 }
 
-bool OnGround(){
+inline bool OnGround(){
 	return (player.hitboxes[0].pos.y + COLLISIONBOXH == SCREENY) || (!currentScreen.CheckMove(EntityHitbox(DoublePoint{player.hitboxes[0].pos.x,player.hitboxes[0].pos.y + COLLISIONBOXH}, COLLISIONBOXW,1)));
 }
 
-bool WallAboveHead(){
+inline bool WallAboveHead(){
 	return (!currentScreen.CheckMove(EntityHitbox(Point{ player.hitboxes[0].pos.x,player.hitboxes[0].pos.y - yVelo * GetFrameTime() }, COLLISIONBOXW , 1 )));
 }
 
-bool OnGround(Point in){
+inline bool OnGround(Point in){
 	return (in.y + COLLISIONBOXH == SCREENY) || (!currentScreen.CheckMove(EntityHitbox(DoublePoint{in.x,in.y + COLLISIONBOXH}, COLLISIONBOXW,1)));
 }
 
-bool InGround(){
+inline bool InGround(){
 	return (player.hitboxes[0].pos.y + COLLISIONBOXH > SCREENY) || !(currentScreen.CheckMove(EntityHitbox(player.hitboxes[0].pos, COLLISIONBOXW,COLLISIONBOXH)));
 }
 
-bool InGround(Point in){
+inline bool InGround(Point in){
 	return (in.y + COLLISIONBOXH > SCREENY) || (currentScreen.CheckMove(EntityHitbox(in, COLLISIONBOXW,COLLISIONBOXH)));
 }
 
- void SnapToFloor(){
+void SnapToFloor(){
 	yVelo = 0;
 	xVelo = 0;
 	player.hitboxes[0].pos.y -= currentScreen.tileSizeY;
@@ -243,7 +253,7 @@ void DecelerateX(){
 
 void ScrollScreen(bool reset){
 	static double pos = 0;
-	double upperBound = (currentScreen.width - currentScreen.size) * ((double)SCREENY/(double)SCREENX);
+	const double upperBound = currentScreen.width - ((double)SCREENX/(double)currentScreen.tileSizeX);
 	if (reset){
 		pos = 0;
 	}
@@ -265,7 +275,7 @@ void ScrollScreen(bool reset){
 
 void MoveEverything(double dir){
 	for(int i = 0; i < LOADED_ENTITIES_HEAD; i++){
-		if(!LOADED_ENTITIES[i].triggerID){
+		if(LOADED_ENTITIES[i].triggerID != 1 && LOADED_ENTITIES[i].triggerID != 2){
 			for(int k = 0; k < LOADED_ENTITIES[i].hitboxes.size(); k++){
 				LOADED_ENTITIES[i].hitboxes[k].pos.x += dir * currentScreen.tileSizeX;
 				if (SCROLL_DEBUG)
@@ -417,10 +427,13 @@ void InitGame(){
 
 	currentScreen.ReadFromFile(currentScreen.fileName);
 	currentScreen.Load();
+	FixTextures();
 	player.hitboxes[0].pos.x += 0.5 * (TEXTUREBOX - COLLISIONBOXW);
 	player.hitboxes[0].pos.y += 0.5 * (TEXTUREBOX - COLLISIONBOXH);
 	currentScreen.backgroundTint = RED;
 	ScrollScreen(true);
+	//if(started)
+		AttackPlayer(-1);
 }
 
 void ChangeTexture(bool right){
@@ -450,3 +463,83 @@ void ReadSign(){
 		}
 	}
 }
+
+void FixTextures(){
+	for(int i = 0; i < LOADED_ENTITIES_HEAD; i++){
+			if(LOADED_ENTITIES[i].triggerID >= 9 && LOADED_ENTITIES[i].trigger && !(LOADED_ENTITIES[i].triggerID % 9)){
+				if(LOADED_ENTITIES[i].triggerID > 9)
+					LOADED_ENTITIES[i].triggerID /= 9;
+				for(int k = 0; k < LOADED_ENTITIES[i].hitboxes.size(); k++){
+						LOADED_ENTITIES[i].hitboxes[k].width = LOADED_ENTITIES[i].hitboxTexts[k].width;
+						LOADED_ENTITIES[i].hitboxes[k].height = LOADED_ENTITIES[i].hitboxTexts[k].height;
+				}
+			}
+	}
+}
+
+void UpdateKarens(){
+	
+	for(int i = 0; i < LOADED_ENTITIES_HEAD; i++){
+		if(LOADED_ENTITIES[i].triggerID == 10){
+			KarenAI(i);
+		}
+	}
+}
+
+void KarenAI(int ent){
+	static bool detected = false;
+	static double timeSinceLastProj = 0;
+	static double chaseTimer = 0;
+	// detect player
+	// if one of them detects the player, all of them see the player
+	// it's a feature, not a bug
+	chaseTimer += GetFrameTime();
+	timeSinceLastProj += GetFrameTime();
+	if(player.Colliding(LOADED_ENTITIES[ent])){
+		chaseTimer = 0;
+	}
+	detected = (chaseTimer <= 0.5);
+	if(!detected)
+		return;
+	// move to the player
+	if(timeSinceLastProj >= (double)AIDIFFICULTY * 0.5f ){
+		if(DEBUG)
+			std::cout << "Attacked player" << " , " << LOADED_ENTITIES_HEAD << std::endl;
+		timeSinceLastProj = 0;
+		AttackPlayer(ent);
+	}
+	
+}
+
+void AttackPlayer(int source){
+	static Texture2D badWords = LoadTexture("assets/bad_words.png");
+	static Entity proj[30];
+	static int i = 0;
+	if(source == -1){
+		std::cout << "DLSLADSKA" << std::endl;
+		for(int k = 0; k < 30; k++){
+			proj[k].ent->hitboxes[0].pos = {-10000,-10000};
+			proj[k].AddToGArry();
+		}
+	}
+	for(int i = 0; i < 30; i++)
+		proj[i].ent->triggerID = 3;
+	proj[i].ent->hitboxes.clear();
+	proj[i].ent->hitboxTexts.clear();
+	proj[i].addBox(EntityHitbox(LOADED_ENTITIES[source].hitboxes[0].pos.x + 45, LOADED_ENTITIES[source].hitboxes[0].pos.y + 80, currentScreen.tileSizeX,currentScreen.tileSizeY));
+	if(player.hitboxes[0].pos.x == LOADED_ENTITIES[source].hitboxes[0].pos.x){
+		proj[i].hitboxes[0].speed = {0,-1};
+	}else{
+	proj[i].hitboxes[0].speed = {
+		// ((x2 - x1) / |x2 - x1|) * cos(tan^-1((y2 - y1) / (x2 - x1)))
+		-1.0f * MOVESPD * AIDIFFICULTY * (((LOADED_ENTITIES[source].hitboxes[0].pos.x + 45) - player.hitboxes[0].pos.x) / std::abs((LOADED_ENTITIES[source].hitboxes[0].pos.x + 45) - player.hitboxes[0].pos.x)) * std::cos(std::atan2((player.hitboxes[0].pos.y - (LOADED_ENTITIES[source].hitboxes[0].pos.y + 80)) / (player.hitboxes[0].pos.x - (LOADED_ENTITIES[source].hitboxes[0].pos.x + 45)),1)) ,
+		// ((x2 - x1) / |x2 - x1|) * sin(tan^-1((y2 - y1) / (x2 - x1)))
+		-1.0f * MOVESPD * AIDIFFICULTY * (((LOADED_ENTITIES[source].hitboxes[0].pos.x + 45) - player.hitboxes[0].pos.x) / std::abs((LOADED_ENTITIES[source].hitboxes[0].pos.x + 45) - player.hitboxes[0].pos.x)) * std::sin(std::atan2((player.hitboxes[0].pos.y - (LOADED_ENTITIES[source].hitboxes[0].pos.y + 80)) / (player.hitboxes[0].pos.x - (LOADED_ENTITIES[source].hitboxes[0].pos.x + 45)),1))
+	}; }
+	proj[i].addTexture(badWords);
+	i++;
+	if(i == 30){
+		i = 0;
+	}
+}
+

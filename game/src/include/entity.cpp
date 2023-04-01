@@ -70,7 +70,8 @@ void DrawEntity(EntityContainer ent, int k){
 			}
 			if (DEBUG){
 				std::string name;
-				name = std::to_string(k) + "." + std::to_string(i);
+				name = std::to_string(k) + "." + std::to_string(i) + "\n" + std::to_string(ent.triggerID); 
+				DrawRectangleLines(ent.hitboxes[i].pos.x, ent.hitboxes[i].pos.y, ent.hitboxes[i].width, ent.hitboxes[i].height, GREEN);
 				DrawText(name.c_str(), ent.hitboxes[i].pos.x, ent.hitboxes[i].pos.y, 20, BLACK);
 			}
 	}
@@ -84,10 +85,8 @@ void DrawEntities() {
 }
 void MoveEntities() {
 	for (int i = 0; i < LOADED_ENTITIES_HEAD; i++) {
-		if (!LOADED_ENTITIES[i].trigger) {
-			for (int k = 0; k < LOADED_ENTITIES[k].hitboxes.size(); k++) {
-				LOADED_ENTITIES[i].hitboxes[k].Move();
-			}
+		for (int k = 0; k < LOADED_ENTITIES[k].hitboxes.size(); k++) {
+			LOADED_ENTITIES[i].hitboxes[k].Move();
 		}
 	}
 }
