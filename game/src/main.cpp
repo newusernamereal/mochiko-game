@@ -54,9 +54,12 @@ void StartScreen();
 void DeathScreen();
 void InitGame();
 
+void InitKarens();
 void UpdateKarens();
 void KarenAI(int ent);
 void AttackPlayer(int source);
+
+bool CollisionsContain(int x, bool update = false);
 
 void UpdateDrawFrame(){
 	MOVESPD = (MOVESPEED * GetFrameTime());
@@ -67,7 +70,7 @@ void UpdateDrawFrame(){
 		StartScreen();
 		return;
 	}
-	if (TriggerCollision(player) == 3)
+	if (CollisionsContain(3,true))
 		dead = true;
 
 	if(dead){
@@ -103,7 +106,6 @@ void Shmove(){ // not proud of this one
 	static bool bonked = false;
 	static double timeOnGround = 0;
 	bool movingSideways = false;
-	bool jumping = false;
 	// y stuff
 	if(!OnGround()){
 		timeOnGround = 0;
@@ -113,7 +115,6 @@ void Shmove(){ // not proud of this one
 			std::cout << "Jumped" << std::endl;
 		yVelo = JUMPSTR;
 		timeOnGround = 0;
-		jumping = true;
 	}
 	else if (WallAboveHead()){
 		if (!bonked){
@@ -148,8 +149,7 @@ void Shmove(){ // not proud of this one
 	}
 	if(IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)){
 		xVelo = MOVESPD;
-		if(IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
-			movingSideways = true;
+		movingSideways = !(IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A));
 		_MoveSideways();
 	}
 	if (!movingSideways){
@@ -257,14 +257,14 @@ void ScrollScreen(bool reset){
 	if (reset){
 		pos = 0;
 	}
-	if(TriggerCollision(player) == 1 && pos + SCROLLSTR <= upperBound){ // player is on the right border; move everything left
+	if(CollisionsContain(1) && pos + SCROLLSTR <= upperBound){ // player is on the right border; move everything left
 		if(SCROLL_DEBUG)
 			std::cout << "Scrolling left because " << pos + SCROLLSTR << " <= " << upperBound << std::endl;
 		pos += SCROLLSTR;
 		MoveEverything(-1 * SCROLLSTR);
 		return;
 	}
-	if(TriggerCollision(player) == 2 && pos - SCROLLSTR <= upperBound && pos - SCROLLSTR >= 0){ // player is on the left border; move everything right
+	if(CollisionsContain(2) && pos - SCROLLSTR <= upperBound && pos - SCROLLSTR >= 0){ // player is on the left border; move everything right
 		if(SCROLL_DEBUG)
 			std::cout << "Scrolling right because " << pos - SCROLLSTR << " <= " << upperBound << std::endl;
 		pos -= SCROLLSTR;
@@ -478,7 +478,6 @@ void FixTextures(){
 }
 
 void UpdateKarens(){
-	
 	for(int i = 0; i < LOADED_ENTITIES_HEAD; i++){
 		if(LOADED_ENTITIES[i].triggerID == 10){
 			KarenAI(i);
@@ -489,20 +488,23 @@ void UpdateKarens(){
 void KarenAI(int ent){
 	static bool detected = false;
 	static double timeSinceLastProj = 0;
-	static double chaseTimer = 0;
+	static double chaseTimer = 1;
 	// detect player
 	// if one of them detects the player, all of them see the player
 	// it's a feature, not a bug
 	chaseTimer += GetFrameTime();
 	timeSinceLastProj += GetFrameTime();
-	if(player.Colliding(LOADED_ENTITIES[ent])){
+	if(std::abs(LOADED_ENTITIES[ent].hitboxes[0].pos.x - player.hitboxes[0].pos.x) <= 10 * currentScreen.tileSizeX){
+		std::cout << "FOUND YOU FUCKER" << std::endl;
 		chaseTimer = 0;
 	}
-	detected = (chaseTimer <= 0.5);
+	if (dead)
+		chaseTimer = 1;
+	detected = (0.5 >= chaseTimer);
 	if(!detected)
 		return;
 	// move to the player
-	if(timeSinceLastProj >= (double)AIDIFFICULTY * 0.5f ){
+	if(timeSinceLastProj >= (double)(10.0f / AIDIFFICULTY) * 0.5f ){
 		if(DEBUG)
 			std::cout << "Attacked player" << " , " << LOADED_ENTITIES_HEAD << std::endl;
 		timeSinceLastProj = 0;
@@ -512,34 +514,54 @@ void KarenAI(int ent){
 }
 
 void AttackPlayer(int source){
-	static Texture2D badWords = LoadTexture("assets/bad_words.png");
+/*	static Texture2D badWords = LoadTexture("assets/bad_words.png");
 	static Entity proj[30];
 	static int i = 0;
 	if(source == -1){
-		std::cout << "DLSLADSKA" << std::endl;
 		for(int k = 0; k < 30; k++){
-			proj[k].ent->hitboxes[0].pos = {-10000,-10000};
-			proj[k].AddToGArry();
+			// proj[k].ent->hitboxes[0].pos = {-10000,-10000};
+			// proj[k].AddToGArry();
+			proj[k] = Entity();
+			proj[k].hitboxes[0].speed = {0,0};
+			proj[k].hitboxes[0].pos = {-128,-128};
 		}
 	}
-	for(int i = 0; i < 30; i++)
+	for(int k = 0; k < 30; k++)
 		proj[i].ent->triggerID = 3;
 	proj[i].ent->hitboxes.clear();
 	proj[i].ent->hitboxTexts.clear();
 	proj[i].addBox(EntityHitbox(LOADED_ENTITIES[source].hitboxes[0].pos.x + 45, LOADED_ENTITIES[source].hitboxes[0].pos.y + 80, currentScreen.tileSizeX,currentScreen.tileSizeY));
 	if(player.hitboxes[0].pos.x == LOADED_ENTITIES[source].hitboxes[0].pos.x){
 		proj[i].hitboxes[0].speed = {0,-1};
-	}else{
+	}                                   
+	?"
+	\VESPD * (1.0f / AIDIFFICULTY);
+	const double slope = (player.hitboxes[0].pos.y - (sourceP.y)) / (player.hitboxes[0].pos.x - (sourceP.x));
 	proj[i].hitboxes[0].speed = {
 		// ((x2 - x1) / |x2 - x1|) * cos(tan^-1((y2 - y1) / (x2 - x1)))
-		-1.0f * MOVESPD * AIDIFFICULTY * (((LOADED_ENTITIES[source].hitboxes[0].pos.x + 45) - player.hitboxes[0].pos.x) / std::abs((LOADED_ENTITIES[source].hitboxes[0].pos.x + 45) - player.hitboxes[0].pos.x)) * std::cos(std::atan2((player.hitboxes[0].pos.y - (LOADED_ENTITIES[source].hitboxes[0].pos.y + 80)) / (player.hitboxes[0].pos.x - (LOADED_ENTITIES[source].hitboxes[0].pos.x + 45)),1)) ,
+		(double)speedMultiplier * (double)xParity * std::cos(std::atan2(slope,1)) ,
 		// ((x2 - x1) / |x2 - x1|) * sin(tan^-1((y2 - y1) / (x2 - x1)))
-		-1.0f * MOVESPD * AIDIFFICULTY * (((LOADED_ENTITIES[source].hitboxes[0].pos.x + 45) - player.hitboxes[0].pos.x) / std::abs((LOADED_ENTITIES[source].hitboxes[0].pos.x + 45) - player.hitboxes[0].pos.x)) * std::sin(std::atan2((player.hitboxes[0].pos.y - (LOADED_ENTITIES[source].hitboxes[0].pos.y + 80)) / (player.hitboxes[0].pos.x - (LOADED_ENTITIES[source].hitboxes[0].pos.x + 45)),1))
-	}; }
+		(double)speedMultiplier * (double)xParity * std::sin(std::atan2(slope,1))
+	};
+	std::cout << proj[i].hitboxes[0].speed.x << " , " << proj[i].hitboxes[0].speed.y << std::endl;
+	}
 	proj[i].addTexture(badWords);
 	i++;
 	if(i == 30){
 		i = 0;
-	}
+	} */
 }
 
+void InitKarens(){
+	// spooky
+}
+
+
+bool CollisionsContain(int x, bool update){
+	static std::optional<std::vector<int>> collisions = TriggerCollision(player); // cache each frame
+	if(update)
+		collisions = TriggerCollision(player);
+	if(!collisions.has_value())
+		return false;
+	return (std::find(collisions.value().begin(), collisions.value().end(), x) != collisions.value().end());
+}

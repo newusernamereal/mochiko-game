@@ -24,7 +24,7 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 		static std::vector<Texture2D> texts;
 		static std::vector<std::string> loadedTexts;
 		std::vector<Texture2D> expectedTexts;
-		bool flag = false;
+		bool textureCached = false;
 		std::string currentLine;
 		std::string currentNumber;
 		int xcounter = 0;
@@ -50,31 +50,31 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 			tileSizeX = tileSizeY;
 		}
 		// 1 to (data.size() - (size + 1)) is all textures
-		for (int i = 1; i <= (data.size() - (size + 1)); i++) {
-			for (int k = 0; k < loadedTexts.size(); k++) {
+		for (size_t i = 1; i <= (data.size() - (size + 1)); i++) {
+			for (size_t k = 0; k < loadedTexts.size(); k++) {
 				if (loadedTexts[k] == data[i]) {
 //					std::cout << loadedTexts[k] << " = " << data[i] << std::endl;
-					flag = true;
+					textureCached = true;
 					break;
 				}
 			}
-			if (!flag) {
+			if (!textureCached) {
 				loadedTexts.push_back(data[i]);
 				texts.push_back(LoadTexture(data[i].c_str()));
 			}
-			flag = false;
+			textureCached = false;
 		}
-		for (int i = 1; i <= (data.size() - (size + 1)); i++) {
-			for (int k = 0; k < loadedTexts.size(); k++) {
+		for (size_t i = 1; i <= (data.size() - (size + 1)); i++) {
+			for (size_t k = 0; k < loadedTexts.size(); k++) {
 				if (loadedTexts[k] == data[i]) {
 					expectedTexts.push_back(texts[k]);
 				}
 			}
 		}
 		//(data.size() - (size + 1)) to data.size() - 1 is all tile data
-		for (int y = (data.size() - (size)); y < data.size(); y++) {
+		for (size_t y = (data.size() - (size)); y < data.size(); y++) {
 			xcounter = 0;
-			for (int x = 0; x < data[y].size(); x++) {
+			for (size_t x = 0; x < data[y].size(); x++) {
 				if (data[y][x] == 'p') {
 					if (entities.size()) {
 						if (entities[0].hitboxes.size()) {
@@ -150,7 +150,7 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 		width = xcounter;
 	}
 bool Screen::CheckMove(Point to) {
-		for (int i = 0; i < barriers.size(); i++) {
+		for (size_t i = 0; i < barriers.size(); i++) {
 			if (barriers[i].Colliding(to)) {
 				return false;
 			}
@@ -158,7 +158,7 @@ bool Screen::CheckMove(Point to) {
 		return true;
 	}
 bool Screen::CheckMove(EntityContainer to) {
-		for (int i = 0; i < barriers.size(); i++) {
+		for (size_t i = 0; i < barriers.size(); i++) {
 			if (barriers[i].Colliding(to)) {
 				return false;
 			}
@@ -166,7 +166,7 @@ bool Screen::CheckMove(EntityContainer to) {
 		return true;
 	}
 bool Screen::CheckMove(EntityHitbox to) {
-	for (int i = 0; i < barriers.size(); i++) {
+	for (size_t i = 0; i < barriers.size(); i++) {
 		if (barriers[i].Colliding(to)) {
 			return false;
 		}
@@ -174,23 +174,14 @@ bool Screen::CheckMove(EntityHitbox to) {
 	return true;
 }
 
-int TriggerCollision(Entity& Player) {
+std::optional<std::vector<int>> TriggerCollision(Entity& Player) {
+	std::vector<int> out;
 	for (int i = 0; i < LOADED_ENTITIES_HEAD; i++) {
 		if (LOADED_ENTITIES[i].Colliding(Player.hitboxes[0]) && LOADED_ENTITIES[i].triggerID != 0) {
-			return LOADED_ENTITIES[i].triggerID;
+			out.push_back(LOADED_ENTITIES[i].triggerID);
 		}
 	}
-	return 0;
-}
-Point FindTrigger(Screen & screen, int find) {
-	Entity empty;
-	empty.addBox(EntityHitbox(0, 0, screen.tileSizeX, screen.tileSizeY));
-	for (int x = 0; x < SCREENX; x += screen.tileSizeX) {
-		for (int y = 0; y < SCREENY; y += screen.tileSizeY) {
-			if (TriggerCollision(empty) == find) {
-				return { x,y };
-			}
-		}
-	}
-	return { 0,0 };
+	if(out.size())
+		return out;
+	return {};
 }
