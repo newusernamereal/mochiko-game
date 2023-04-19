@@ -23,7 +23,19 @@ bool ColorsEqual(Color c1, Color c2){
 }
 void BackgroundScreen::Draw(){
 	if((*this).backgroundIsText){
-		DrawTextureRec(background, { 0,0,SCREENX,SCREENY }, {0,0},backgroundTint);
+		if (anim){
+			time += GetFrameTime();
+			if(time > (double)(frames) / (double)animFps){
+				time = 0;
+				currentFrame = 0;
+				animDone = true;
+			}
+			currentFrame = std::floor(animFps * time);
+		}
+		ClearBackground(WHITE);
+		DrawTextureRec(background, { 0,0,background.width,background.height }, 
+		{(int)offset.x + (anim ? animOffset.x * currentFrame : 0 ),
+		 (int)offset.y + (anim ? animOffset.y * currentFrame : 0 )},backgroundTint);
 	}
 	else{
 		ClearBackground(backgroundTint);

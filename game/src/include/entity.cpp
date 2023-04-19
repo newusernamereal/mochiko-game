@@ -9,9 +9,9 @@ bool EntityContainer::Colliding(DoublePoint p) {
 	}
 	return false;
 }
-void Entity::AddToGArry() {
+void Entity::AddToGArry(bool constructed) {
 	{
-		if (DEBUG) {
+		if (DEBUG && constructed) {
 			std::cout << "Entity Constructer Called" << std::endl;
 		}
 		if (LOADED_ENTITIES_HEAD > ENTITY_MAX) {
@@ -22,7 +22,7 @@ void Entity::AddToGArry() {
 				exit(1);
 			}
 			else { // uh um hm help
-				ent = &LOADED_ENTITIES[ENTITY_MAX]; // bad solution
+				ent = &LOADED_ENTITIES[ENTITY_MAX - 1]; // bad solution
 				if (DEBUG) {
 					std::cout << "Entity Overflow! Entity replaced end of array" << std::endl;
 				}
@@ -30,6 +30,10 @@ void Entity::AddToGArry() {
 		}
 		else {
 			ent = &LOADED_ENTITIES[LOADED_ENTITIES_HEAD++];
+			if(!constructed){
+				hitboxes = ent->hitboxes.data();
+				hitboxTexts = ent->hitboxTexts.data();
+			}
 			if (DEBUG) {
 				std::cout << "Entity Loaded Succesfully" << std::endl;
 			}
@@ -38,7 +42,7 @@ void Entity::AddToGArry() {
 	}
 }
 Entity::Entity() {
-	AddToGArry();
+	AddToGArry(true);
 }
 Entity::Entity(EntityContainer in) {
 	ent = &in;
@@ -50,6 +54,15 @@ void DrawEntity(Entity ent){
 	DrawEntity(*ent.ent);
 }
 void DrawEntity(EntityContainer ent, int k){
+	if(LOADED_ENTITIES[k].anim){ // use LOADED_ENTITIES[k] bc entity container is passed by value (maybe fix? because that's a lot of data)
+		LOADED_ENTITIES[k].time += GetFrameTime();
+		if(LOADED_ENTITIES[k].time > (double)(LOADED_ENTITIES[k].frames) / (double)LOADED_ENTITIES[k].fps){
+			LOADED_ENTITIES[k].time = 0;
+			LOADED_ENTITIES[k].currentFrame = 0;
+			LOADED_ENTITIES[k].animDone = true;
+		}
+		LOADED_ENTITIES[k].currentFrame = std::floor(LOADED_ENTITIES[k].fps * LOADED_ENTITIES[k].time);
+	}
 	if(!ent.hitboxes.size() && !DEBUG){
 		return;
 	}
@@ -58,9 +71,12 @@ void DrawEntity(EntityContainer ent, int k){
 	}
 	for (int i = 0; i < ent.hitboxes.size(); i++) {
 		DrawTextureRec(ent.hitboxTexts[i],
-			{ ent.offset.x , ent.offset.y , ent.hitboxes[i].width, ent.hitboxes[i].height },
+			{ ent.offset.x + (LOADED_ENTITIES[k].anim ? LOADED_ENTITIES[k].animOffset.x * LOADED_ENTITIES[k].currentFrame : 0 ),
+			  ent.offset.y + (LOADED_ENTITIES[k].anim ? LOADED_ENTITIES[k].animOffset.y * LOADED_ENTITIES[k].currentFrame : 0 ), 
+			  ent.hitboxes[i].width, ent.hitboxes[i].height },
 			{ ent.hitboxes[i].pos.x , ent.hitboxes[i].pos.y },
 			ent.tint);
+
 			if (DRAW_DEBUG) {
 				ent.debugDrawCounter += GetFrameTime();
 				if (ent.debugDrawCounter >= 1) { // so console doesnt get spammed

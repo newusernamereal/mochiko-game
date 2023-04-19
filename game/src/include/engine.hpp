@@ -9,7 +9,7 @@
 #define SCREENX 1024
 #define SCREENY 576
 #define ENTITY_MAX 2000
-#define DEBUG false
+#define DEBUG true
 #define DRAW_DEBUG false
 // ^^ debug for specifically drawing hitboxes, which spams console and renders a lot of other debug output unreadable with a lot of entities, but still useful.
 #define EMAX_CRASH false
@@ -30,6 +30,14 @@ public:
 	bool backgroundIsText;
 	Texture2D background;
 	Color backgroundTint = WHITE;
+	DoublePoint offset = {0,0};
+	Point animOffset = {0,0};
+	bool anim = false;
+	int animFps = 5;
+	int currentFrame = 0;
+	int frames = 5;
+	bool animDone = false;
+	double time = 0;
 	void Draw();
 	BackgroundScreen(std::string backgroundImage = "\n");
 	void Init(std::string windowName, int fps = 0, std::string backgroundImage = "\n");

@@ -21,6 +21,6 @@ public:
 	bool CheckMove(EntityHitbox to);
 };
 
-std::optional<std::vector<int>> TriggerCollision(Entity& Ent);
-Point FindTrigger(Screen& screen, int find);
+std::optional<int> FindTrigger(int find);
+std::optional<std::vector<int>> TriggerCollision(const Entity& Ent);
 #endif

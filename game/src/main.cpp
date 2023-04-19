@@ -15,20 +15,23 @@ bool dead = false;
 
 int AIDIFFICULTY = 1; // AI difficulty, affects movespeed and rate of fire
 
-const double GRAVITY = 1450; // downwards acceleration from gravity, in px/s^2
+const double GRAVITY = 1300; // downwards acceleration from gravity, in px/s^2
 const double JUMPSTR = 400; // upwards (one time) velocity gain from jumping, in px/s
-const int MOVESPEED = 330; // sideways velocity from moving, in px/second
+const int MOVESPEED = 400; // sideways velocity from moving, in px/second
 
 const int TEXTUREBOX = 64; // size of the texture hitbox, in (px)^2 (not a square measurement)
 const int COLLISIONBOXH = 60; // height of the collision hitbox, in px
 const int COLLISIONBOXW = 36; // width of the collision hitbox in px
 
-double SCROLLSTR = 1; // how strong the scroll is, in tiles/frame
+double SCROLLSTR = 1; // how strong the scroll is, in tiles/sec
 
 int SIGNFONTSIZE = 20; // how big the sign's font size is, in px
 int SIGNELEVATION = 150; // how high the sign text appears above the sign, in px
 
 int MOVESPD = MOVESPEED; // movespeed * DT rounded to the nearest integer because fractions don't play nice. might cause problems if people use crazy high (360hz+) screens but i really don't care
+
+bool HAS_KEY = false;
+int COINS = 0; // idk?? fun
 
 void Shmove();
 bool OutOfBounds(DoublePoint in);
@@ -42,7 +45,7 @@ bool WallAboveHead();
 void DecelerateX();
 void _MoveSideways();
 
-void ChangeTexture(bool right);
+void ChangeTexture(bool right, bool flying = false);
 
 void ScrollScreen(bool reset = false);
 void MoveEverything(double dir);
@@ -60,30 +63,58 @@ void KarenAI(int ent);
 void AttackPlayer(int source);
 
 bool CollisionsContain(int x, bool update = false);
+bool CollisionsContain(EntityContainer ent, int x, bool update = false);
+
+void PickUpKey();
+void PickUpCoin();
+void UseDoor(bool reset = false);
+
+void NextLevel();
+
+void SwitchMusic(Music& currentMusic);
 
 void UpdateDrawFrame(){
 	MOVESPD = (MOVESPEED * GetFrameTime());
 	SCROLLSTR = (MOVESPD / currentScreen.tileSizeX);
+	static Texture2D hudKey = LoadTexture("assets/still_key.png");
+	static Texture2D noKeys = LoadTexture("assets/keyless.png");
+	static Music music;
+	static std::string world = "";
+	if(!IsAudioDeviceReady()){
+		InitAudioDevice();
+	}
 	UpdateKarens();
 	MoveEntities();
+	PickUpKey();
+	PickUpCoin();
+	UseDoor();
 	if(!started){
 		StartScreen();
 		return;
 	}
+	Shmove();
 	if (CollisionsContain(3,true))
 		dead = true;
-
+	
+	if (CollisionsContain(4))
+		HAS_KEY = true;
+	
 	if(dead){
+		SeekMusicStream(music,0.0f);
 		DeathScreen();
 		return;
 	}
-	Shmove();
+	if(world != currentScreen.fileName)
+		SwitchMusic(music);
+	world = currentScreen.fileName;
+	UpdateMusicStream(music);
 	ScrollScreen();
 	player.hitboxes[1].pos = DoublePoint{ player.hitboxes[0].pos.x -  0.5 * (TEXTUREBOX - COLLISIONBOXW) , player.hitboxes[0].pos.y -  0.5 * (TEXTUREBOX - COLLISIONBOXH) };
 	BeginDrawing();
-		DrawEntities();
-		ReadSign();
 		currentScreen.Draw();
+		DrawEntities();
+		DrawTextureRec(HAS_KEY ? hudKey : noKeys,{0,0,64,64},{0,0},WHITE);
+		ReadSign();
 	EndDrawing();
 }
 
@@ -92,7 +123,7 @@ int main(){
 	initEntityArr();
 	player.AddToGArry();
 	InitWindow(SCREENX, SCREENY, "Mochiko Platformer");
-#if defined(PLATFORM_WEB)
+#if defined(__EMSCRIPTEN__)
     emscripten_set_main_loop(UpdateDrawFrame, 0, 1);
 #else
     SetTargetFPS(60);
@@ -105,12 +136,13 @@ int main(){
 void Shmove(){ // not proud of this one
 	static bool bonked = false;
 	static double timeOnGround = 0;
+	static bool lastMoveRight = false;
 	bool movingSideways = false;
 	// y stuff
 	if(!OnGround()){
 		timeOnGround = 0;
 	}
-	if((IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) && OnGround() && timeOnGround){
+	if((IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) && OnGround() && timeOnGround){
 		if(DEBUG)
 			std::cout << "Jumped" << std::endl;
 		yVelo = JUMPSTR;
@@ -130,8 +162,10 @@ void Shmove(){ // not proud of this one
 	if(!OnGround()){
 		yVelo -= (GRAVITY * GetFrameTime());
 		timeOnGround = 0;
+		ChangeTexture(lastMoveRight,true);
 	}
 	else{
+		ChangeTexture(lastMoveRight,false);
 		timeOnGround += GetFrameTime();
 	}
 	player.hitboxes[0].pos = DoublePoint{ player.hitboxes[0].pos.x, player.hitboxes[0].pos.y - yVelo * GetFrameTime() };
@@ -156,7 +190,8 @@ void Shmove(){ // not proud of this one
 		DecelerateX();
 	}
 	if(movingSideways){
-		xVelo < 0 ? ChangeTexture(false) : ChangeTexture(true);
+		xVelo < 0 ? ChangeTexture(false, !OnGround()) : ChangeTexture(true, !OnGround());
+		lastMoveRight = xVelo > 0;
 	}
 }
 
@@ -187,7 +222,7 @@ inline bool OnGround(){
 }
 
 inline bool WallAboveHead(){
-	return (!currentScreen.CheckMove(EntityHitbox(Point{ player.hitboxes[0].pos.x,player.hitboxes[0].pos.y - yVelo * GetFrameTime() }, COLLISIONBOXW , 1 )));
+	return (!currentScreen.CheckMove(EntityHitbox(Point{ player.hitboxes[0].pos.x,player.hitboxes[0].pos.y - yVelo * GetFrameTime() }, COLLISIONBOXW , 1 )) || (player.hitboxes[0].pos.y - yVelo * GetFrameTime()) < 0);
 }
 
 inline bool OnGround(Point in){
@@ -213,7 +248,6 @@ void SnapToFloor(){
 	for(int i = 0; i < std::max(player.hitboxes[0].pos.y, SCREENY - player.hitboxes[0].pos.y); i++){
 		// find the nearest floor, starting from the feet
 		if(OnGround(Point{ player.hitboxes[0].pos.x , searchUp }) && !InGround(Point{ player.hitboxes[0].pos.x , searchUp })){
-			std::cout << "dsa" << std::endl;
 			if(DEBUG)
 				std::cout << "found a floor up: " << searchUp << "\n";
 			player.hitboxes[0].pos.y = searchUp;
@@ -253,15 +287,27 @@ void DecelerateX(){
 
 void ScrollScreen(bool reset){
 	static double pos = 0;
+	static Entity screenAnchor;
+	static bool init = false;
 	const double upperBound = currentScreen.width - ((double)SCREENX/(double)currentScreen.tileSizeX);
+	if(!init){
+		screenAnchor.addBox(EntityHitbox(0,0,1,1));
+		screenAnchor.addTexture(LoadTexture("assets/transparent.png"));
+		init = true;
+	}
 	if (reset){
 		pos = 0;
+		screenAnchor.AddToGArry();
+		screenAnchor.addBox(EntityHitbox(0,0,1,1));
+		screenAnchor.DontDraw(true);
+		currentScreen.offset.x = screenAnchor.hitboxes[0].pos.x; 
 	}
 	if(CollisionsContain(1) && pos + SCROLLSTR <= upperBound){ // player is on the right border; move everything left
 		if(SCROLL_DEBUG)
 			std::cout << "Scrolling left because " << pos + SCROLLSTR << " <= " << upperBound << std::endl;
 		pos += SCROLLSTR;
 		MoveEverything(-1 * SCROLLSTR);
+		currentScreen.offset.x = screenAnchor.hitboxes[0].pos.x; // quick and dirty
 		return;
 	}
 	if(CollisionsContain(2) && pos - SCROLLSTR <= upperBound && pos - SCROLLSTR >= 0){ // player is on the left border; move everything right
@@ -269,6 +315,7 @@ void ScrollScreen(bool reset){
 			std::cout << "Scrolling right because " << pos - SCROLLSTR << " <= " << upperBound << std::endl;
 		pos -= SCROLLSTR;
 		MoveEverything(SCROLLSTR);
+		currentScreen.offset.x = screenAnchor.hitboxes[0].pos.x; 
 		return;
 	}
 }
@@ -294,23 +341,29 @@ void MoveEverything(double dir){
 
 void StartScreen(){
 	static Entity startText;
-
+	static Music startMusic;
 	static double anim = 0;
 	static int frameCounter = 0;
 	static bool up = true;
 
 	static bool init = false;
 	if (!init){
+		startMusic = LoadMusicStream("assets/start_screen.wav");
+		SeekMusicStream(startMusic,0.0f);
+		SetMusicVolume(startMusic, 0.3);
+		PlayMusicStream(startMusic);
 		startText.addTexture(LoadTexture("assets/start.png"));
 		startText.addBox(EntityHitbox(Point{266,138},492,300));
 		init = true;
 	}
 	if(IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)){
+		StopMusicStream(startMusic);
 		InitGame();
 		started = true;
 		return;
 	}
 	anim += GetFrameTime();
+	UpdateMusicStream(startMusic);
 	if(anim >= 0.2){
 		anim = 0;
 		frameCounter++;
@@ -334,6 +387,7 @@ void StartScreen(){
 void DeathScreen(){
 	static Entity deathText;
 	static Entity plosion;
+	static Music deathMusic; 
 	static Texture2D text = LoadTexture("assets/death.png");
 	static Texture2D plosionText = LoadTexture("assets/ploded.png");
 
@@ -346,6 +400,9 @@ void DeathScreen(){
 	static bool alive = false;
 	static bool finishedAnim = false;
 	if (!init){
+		deathMusic = LoadMusicStream("assets/death_screen.wav");  
+		deathText.AddToGArry();
+		plosion.AddToGArry();
 		deathText.addTexture(text);
 		plosion.addTexture(plosionText);
 		deathText.addBox(EntityHitbox(Point{320,138},384,300));
@@ -365,6 +422,8 @@ void DeathScreen(){
 			anim = 0;
 		}
 		if (frameCounter > 3){
+			SeekMusicStream(deathMusic,0.0f);
+			PlayMusicStream(deathMusic);
 			finishedAnim = true;
 			deathText.DontDraw(false);
 			player.DontDraw(false);
@@ -374,13 +433,14 @@ void DeathScreen(){
 		}
 		plosion.Offset()->x = 128 * frameCounter;
 		BeginDrawing();
+			currentScreen.Draw();
 			DrawEntities();
 			DrawEntity(plosion);
-			currentScreen.Draw();
 		EndDrawing();
 		return;
 	}
 	if(IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)){
+		StopMusicStream(deathMusic);
 		InitGame();
 		dead = false;
 		alive = true;
@@ -392,6 +452,7 @@ void DeathScreen(){
 		return;
 	}
 	anim += GetFrameTime();
+	UpdateMusicStream(deathMusic);
 	if(anim >= frameTime){
 		anim = 0;
 		frameCounter++;
@@ -412,43 +473,85 @@ void DeathScreen(){
 	EndDrawing();
 }
 
-void InitGame(){
+void InitGame(){ // i'm really tired
+	static Entity leftScroll;
+	static Entity rightScroll;
+	static Texture2D sky = LoadTexture("assets/sky.png");
+	static Texture2D night = LoadTexture("assets/night.png");
 	if(!started){
+		player.ent->anim = true;
+		player.ent->animOffset = {0,64};
+		player.ent->fps = 5;
+		player.ent->frames = 2;
+		leftScroll.addBox(EntityHitbox(0,0,64,SCREENY));
+		leftScroll.ent->triggerID = 2;
+		leftScroll.ent->trigger = true;
+		leftScroll.ent->dontDraw = false;
+		rightScroll.addBox(EntityHitbox(SCREENX - (64 * 11),0,64,SCREENY));
+		rightScroll.ent->triggerID = 1;
+		rightScroll.ent->trigger = true;
+		rightScroll.ent->dontDraw = false;
 		player.addTexture(LoadTexture("assets/transparent.png")); // transparent texture for the collision box
 		player.addTexture(LoadTexture("assets/chicken.png")); // actual texture for the drawing box
 		player.addBox(EntityHitbox((DoublePoint) { 0.5 * (TEXTUREBOX - COLLISIONBOXW), 0.5 * (TEXTUREBOX - COLLISIONBOXH) }, COLLISIONBOXW, COLLISIONBOXH)); // collision box
 		player.addBox(EntityHitbox((DoublePoint) { 0, 0 }, TEXTUREBOX, TEXTUREBOX)); // drawing box
 		currentScreen.entities.push_back(*player.ent);
+		currentScreen.entities.push_back(*leftScroll.ent);
+		currentScreen.entities.push_back(*rightScroll.ent);
 		currentScreen.ReadFromFile("assets/LevelOne.ce");
 	}
-	clearEntitiesExceptFirst();
 	currentScreen.entities.clear();
 	currentScreen.entities.push_back(*player.ent);
-
 	currentScreen.ReadFromFile(currentScreen.fileName);
 	currentScreen.Load();
+	leftScroll.AddToGArry();
+	rightScroll.AddToGArry();
+	leftScroll.addBox(EntityHitbox(0,0,64,SCREENY));
+	leftScroll.ent->triggerID = 2;
+	leftScroll.ent->trigger = true;
+	leftScroll.ent->dontDraw = false;
+	rightScroll.addBox(EntityHitbox(SCREENX - (64 * 11),0,64,SCREENY));
+	rightScroll.ent->triggerID = 1;
+	rightScroll.ent->trigger = true;
+	rightScroll.ent->dontDraw = false;
 	FixTextures();
+	currentScreen.backgroundIsText = true;
+	if(currentScreen.fileName == "assets/LevelOne.ce"){
+		currentScreen.background = sky;
+		currentScreen.anim = false;
+	}
+	if(currentScreen.fileName == "assets/LevelTwo.ce"){
+		currentScreen.background = night;
+		currentScreen.anim = true;
+		currentScreen.animFps = 2;
+		currentScreen.frames = 2;
+		currentScreen.animOffset = {0,-576};
+	}
 	player.hitboxes[0].pos.x += 0.5 * (TEXTUREBOX - COLLISIONBOXW);
 	player.hitboxes[0].pos.y += 0.5 * (TEXTUREBOX - COLLISIONBOXH);
-	currentScreen.backgroundTint = RED;
+	currentScreen.backgroundTint = WHITE;
 	ScrollScreen(true);
 	//if(started)
 		AttackPlayer(-1);
+	UseDoor(true);
+	if(FindTrigger(5).has_value())
+		LOADED_ENTITIES[FindTrigger(5).value()].anim = false;
 }
 
-void ChangeTexture(bool right){
+void ChangeTexture(bool right, bool flying){
 	if(right){
-		player.Offset()->x = 0;
+		player.Offset()->x = 0 + (flying ? 128 : 0);
 		return;
 	}
-	player.Offset()->x = 64;
+	player.Offset()->x = 64 + (flying ? 128 : 0);
 }
 
 void _MoveSideways(){
 	EntityHitbox checkX(DoublePoint{player.hitboxes[0].pos.x + xVelo, player.hitboxes[0].pos.y},COLLISIONBOXW,COLLISIONBOXH);
-	if(currentScreen.CheckMove(checkX) && !OutOfBounds(checkX)){
-		player.hitboxes[0].pos = DoublePoint{player.hitboxes[0].pos.x + xVelo, player.hitboxes[0].pos.y};
+	if(!currentScreen.CheckMove(checkX) || OutOfBounds(checkX)){
+		return;
 	}
+	player.hitboxes[0].pos = DoublePoint{player.hitboxes[0].pos.x + xVelo, player.hitboxes[0].pos.y};
 }
 
 void ReadSign(){
@@ -459,7 +562,6 @@ void ReadSign(){
 				LOADED_ENTITIES[i].hitboxes[0].pos.x - (0.25 * MeasureText(LOADED_ENTITIES[i].signText.c_str(), SIGNFONTSIZE)) ,
 				LOADED_ENTITIES[i].hitboxes[0].pos.y - SIGNELEVATION, SIGNFONTSIZE , WHITE);
 			}
-			//std::cout << LOADED_ENTITIES[i].signText << std::endl;
 		}
 	}
 }
@@ -473,6 +575,16 @@ void FixTextures(){
 						LOADED_ENTITIES[i].hitboxes[k].width = LOADED_ENTITIES[i].hitboxTexts[k].width;
 						LOADED_ENTITIES[i].hitboxes[k].height = LOADED_ENTITIES[i].hitboxTexts[k].height;
 				}
+			}
+			if(LOADED_ENTITIES[i].trigger && !(LOADED_ENTITIES[i].triggerID % 7)){ //fix door
+				for(int k = 0; k < LOADED_ENTITIES[i].hitboxes.size(); k++){
+						LOADED_ENTITIES[i].hitboxes[k].width = LOADED_ENTITIES[i].hitboxTexts[k].width / 5;
+						LOADED_ENTITIES[i].hitboxes[k].height = LOADED_ENTITIES[i].hitboxTexts[k].height;
+				}
+				LOADED_ENTITIES[i].animOffset = {LOADED_ENTITIES[i].hitboxTexts[0].width / 5, 0};
+				LOADED_ENTITIES[i].fps = 5;
+				LOADED_ENTITIES[i].frames = 4;
+				LOADED_ENTITIES[i].triggerID /= 7;
 			}
 	}
 }
@@ -494,8 +606,7 @@ void KarenAI(int ent){
 	// it's a feature, not a bug
 	chaseTimer += GetFrameTime();
 	timeSinceLastProj += GetFrameTime();
-	if(std::abs(LOADED_ENTITIES[ent].hitboxes[0].pos.x - player.hitboxes[0].pos.x) <= 10 * currentScreen.tileSizeX){
-		std::cout << "FOUND YOU FUCKER" << std::endl;
+	if(std::abs(LOADED_ENTITIES[ent].hitboxes[0].pos.x - player.hitboxes[0].pos.x) <= 3 * currentScreen.tileSizeX){
 		chaseTimer = 0;
 	}
 	if (dead)
@@ -556,7 +667,6 @@ void InitKarens(){
 	// spooky
 }
 
-
 bool CollisionsContain(int x, bool update){
 	static std::optional<std::vector<int>> collisions = TriggerCollision(player); // cache each frame
 	if(update)
@@ -564,4 +674,72 @@ bool CollisionsContain(int x, bool update){
 	if(!collisions.has_value())
 		return false;
 	return (std::find(collisions.value().begin(), collisions.value().end(), x) != collisions.value().end());
+}
+
+bool CollisionsContain(EntityContainer ent, int x, bool update){
+	static std::optional<std::vector<int>> collisions = TriggerCollision(Entity(ent)); // cache each frame
+	if(update)
+		collisions = TriggerCollision(Entity(ent));
+	if(!collisions.has_value())
+		return false;
+	return (std::find(collisions.value().begin(), collisions.value().end(), x) != collisions.value().end());
+}
+
+void PickUpKey(){
+	if(!CollisionsContain(4)){
+		return;	
+	}
+	LOADED_ENTITIES[FindTrigger(4).value()].dontDraw = true;
+}
+
+void PickUpCoin(){
+	if(!CollisionsContain(6)){
+		return;	
+	}
+	int coin = FindTrigger(6).value();
+	LOADED_ENTITIES[coin].dontDraw = true;
+	LOADED_ENTITIES[coin].hitboxes.clear();
+}
+
+void UseDoor(bool reset){
+	static bool animStarted = false;
+	static int door = 0;
+	if(reset){
+		door = 0;
+		animStarted = false;
+		HAS_KEY = false;
+	}
+	if(!animStarted && (!IsKeyDown(KEY_F) || !CollisionsContain(5) || !HAS_KEY))
+		return;
+	animStarted = true;
+	if(!door)
+		door = FindTrigger(5).value();
+	 
+	LOADED_ENTITIES[door].anim = true;
+	if(LOADED_ENTITIES[door].animDone){
+		NextLevel();
+	}
+}
+
+void NextLevel(){
+	if(currentScreen.fileName == "assets/LevelOne.ce"){
+		currentScreen.fileName = "assets/LevelTwo.ce";
+		InitGame();
+	}
+	return;
+}
+
+void SwitchMusic(Music& currentMusic){
+	static Music world1 = LoadMusicStream("assets/world_1.wav");
+	static Music world2 = LoadMusicStream("assets/world_2.mp3");
+	if(currentScreen.fileName == "assets/LevelOne.ce"){
+		currentMusic = world1;
+	}
+	if(currentScreen.fileName == "assets/LevelTwo.ce"){
+		currentMusic = world2;
+	}
+	if(currentScreen.fileName == "assets/LevelThree.ce"){
+		
+	}
+	PlayMusicStream(currentMusic);
 }

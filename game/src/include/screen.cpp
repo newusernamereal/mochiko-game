@@ -104,6 +104,8 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 					currentNumber = "";
 					x++;
 					while (data[y][x] != '}') {
+						if(DEBUG)
+							std::cout << currentNumber << std::endl;
 						currentNumber += data[y][x];
 						x++;
 					}
@@ -112,6 +114,9 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 					}
 					empty.signText = currentNumber;
 					currentNumber = "0";
+				}
+				else if (data[y][x] == 'a'){
+					empty.anim = true;
 				}
 				else if (data[y][x] == 'b') {
 					emptyBarrier.hitboxTexts.clear();
@@ -123,6 +128,24 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 						emptyBarrier.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter * SCREENY / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENY / size, SCREENY / size));
 					emptyBarrier.trigger = true;
 					barriers.push_back(emptyBarrier);
+				}
+				else if (data[y][x] == 'B') {
+					if (stoi(currentNumber) || empty.trigger || empty.signText != "") {
+						if (stoi(currentNumber))
+							empty.hitboxTexts.push_back(expectedTexts[stoi(currentNumber) - 1]);
+						if(!SQUARE_TILES)
+							empty.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter * SCREENY / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENX / size, SCREENY / size));
+						if(SQUARE_TILES)
+							empty.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter * SCREENY / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENY / size, SCREENY / size));
+						entities.push_back(empty);
+						empty.hitboxTexts.clear();
+						empty.hitboxes.clear();
+						empty.trigger = false;
+						empty.triggerID = 0;
+						empty.signText = "";
+						empty.anim = false;
+					}
+					currentNumber = " ";
 				}
 				else if (data[y][x] == ',') {
 					if (stoi(currentNumber) || empty.trigger || empty.signText != "") {
@@ -138,6 +161,7 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 						empty.trigger = false;
 						empty.triggerID = 0;
 						empty.signText = "";
+						empty.anim = false;
 					}
 					currentNumber = " ";
 					xcounter++;
@@ -173,8 +197,19 @@ bool Screen::CheckMove(EntityHitbox to) {
 	}
 	return true;
 }
+std::optional<int> FindTrigger(int find){
+	std::optional<int> ret; 
+	for(int i = 0; i < LOADED_ENTITIES_HEAD; i++){
+		if(LOADED_ENTITIES[i].triggerID == find){
+			ret = i;
+			return ret;
+		}
+	}
+	ret.reset();
+	return ret;
+}
 
-std::optional<std::vector<int>> TriggerCollision(Entity& Player) {
+std::optional<std::vector<int>> TriggerCollision(const Entity& Player) {
 	std::vector<int> out;
 	for (int i = 0; i < LOADED_ENTITIES_HEAD; i++) {
 		if (LOADED_ENTITIES[i].Colliding(Player.hitboxes[0]) && LOADED_ENTITIES[i].triggerID != 0) {

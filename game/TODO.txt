@@ -1,0 +1,5 @@
+- music
+- maps
+- possibly AI
+- moving blocks
+- make art more cartoonish

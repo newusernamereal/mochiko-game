@@ -38,15 +38,22 @@ public:
 class EntityContainer { // container class for entities
 public:
 	bool trigger = false;
+	bool anim = false;
+	Point animOffset = {64,0}; // how much the animation is offset by per animation frame (not necessarily[and shouldn't be!] every actual frame) 
+	int fps = 5;
+	int frames = 4;
 	int triggerID = 0;
+	int currentFrame = 0;
+	double time = 0;
+	bool animDone = false; // anim run one time at least (doesn't affect looping)
 	std::vector<EntityHitbox> hitboxes;
 	std::vector<Texture2D> hitboxTexts;
 	Color tint = WHITE;
 	double debugDrawCounter = 0;
-	bool Colliding(DoublePoint p);
 	Point offset = { 0 , 0 }; // offset of the texture, in px
 	std::string signText;
 	bool dontDraw = false;
+	bool Colliding(DoublePoint p);
 	inline bool Colliding(Point p) {
 		return(Colliding(PointToDoublePoint(p)));
 	}
@@ -101,14 +108,25 @@ public:
 	EntityHitbox* hitboxes;
 	Texture2D* hitboxTexts;
 	Entity(void);
-	void AddToGArry(void);
+	void AddToGArry(bool constructed = false);
 	Entity(EntityContainer in);
 	inline Entity operator = (Entity const& in) { // without this it would simply replace the pointers and that is usually not what is intended
-		ent->debugDrawCounter = in.ent->debugDrawCounter;
+		ent->trigger = in.ent->trigger;
+		ent->anim = in.ent->anim;
+		ent->animOffset = in.ent->animOffset;
+		ent->fps = in.ent->fps;
+		ent->frames = in.ent->frames;
+		ent->triggerID = in.ent->triggerID;
+		ent->currentFrame = in.ent->currentFrame;
+		ent->time = in.ent->time;
+		ent->animDone = in.ent->animDone;
 		ent->hitboxes = in.ent->hitboxes;
 		ent->hitboxTexts = in.ent->hitboxTexts;
-		ent->trigger = in.ent->trigger;
 		ent->tint = in.ent->tint;
+		ent->debugDrawCounter = in.ent->debugDrawCounter;
+		ent->offset = in.ent->offset;
+		ent->signText = in.ent->signText;
+		ent->dontDraw = in.ent->dontDraw;
 		return (*this);
 	}
 	inline bool OutOfBounds() {
