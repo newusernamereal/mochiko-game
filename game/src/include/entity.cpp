@@ -1,5 +1,5 @@
 #include "entity.hpp"
-bool EntityContainer::Colliding(DoublePoint p) {
+bool EntityContainer::Colliding(const DoublePoint& p) {
 	for (int i = 0; i < hitboxes.size(); i++) {
 		if (p.x >= hitboxes[i].pos.x && p.x <= (hitboxes[i].pos.x + hitboxes[i].width)) { // check if x coord is inside
 			if (p.y >= hitboxes[i].pos.y && p.y <= (hitboxes[i].pos.y + hitboxes[i].height)) { // check if y coord is inside
@@ -50,29 +50,37 @@ Entity::Entity(EntityContainer in) {
 void DrawEntity(int k){
 	DrawEntity(LOADED_ENTITIES[k], k);
 }
-void DrawEntity(Entity ent){
+void DrawEntity(Entity& ent){
 	DrawEntity(*ent.ent);
 }
-void DrawEntity(EntityContainer ent, int k){
-	if(LOADED_ENTITIES[k].anim){ // use LOADED_ENTITIES[k] bc entity container is passed by value (maybe fix? because that's a lot of data)
-		LOADED_ENTITIES[k].time += GetFrameTime();
-		if(LOADED_ENTITIES[k].time > (double)(LOADED_ENTITIES[k].frames) / (double)LOADED_ENTITIES[k].fps){
-			LOADED_ENTITIES[k].time = 0;
-			LOADED_ENTITIES[k].currentFrame = 0;
-			LOADED_ENTITIES[k].animDone = true;
+void DrawEntity(EntityContainer& ent, int k){
+	if(ent.anim){ // use LOADED_ENTITIES[k] bc entity container is passed by value (maybe fix? because that's a lot of data)
+		ent.time += GetFrameTime();
+		if(ent.time > (double)(ent.frames) / (double)ent.fps){
+			ent.time = 0;
+			ent.currentFrame = 0;
+			ent.animDone = true;
 		}
-		LOADED_ENTITIES[k].currentFrame = std::floor(LOADED_ENTITIES[k].fps * LOADED_ENTITIES[k].time);
+		ent.currentFrame = std::floor(ent.fps * ent.time);
 	}
 	if(!ent.hitboxes.size() && !DEBUG){
 		return;
 	}
 	if(ent.dontDraw){
+		if(!DEBUG)
+			return;
+		for (int i = 0; i < ent.hitboxes.size(); i++) {
+			std::string name;
+			name = std::to_string(k) + "." + std::to_string(i) + "\n" + std::to_string(ent.triggerID) + "\nnodraw"; 
+			DrawRectangleLines(ent.hitboxes[i].pos.x, ent.hitboxes[i].pos.y, ent.hitboxes[i].width, ent.hitboxes[i].height, GREEN);
+			DrawText(name.c_str(), ent.hitboxes[i].pos.x, ent.hitboxes[i].pos.y, 20, BLACK);
+		}
 		return;
 	}
 	for (int i = 0; i < ent.hitboxes.size(); i++) {
 		DrawTextureRec(ent.hitboxTexts[i],
-			{ ent.offset.x + (LOADED_ENTITIES[k].anim ? LOADED_ENTITIES[k].animOffset.x * LOADED_ENTITIES[k].currentFrame : 0 ),
-			  ent.offset.y + (LOADED_ENTITIES[k].anim ? LOADED_ENTITIES[k].animOffset.y * LOADED_ENTITIES[k].currentFrame : 0 ), 
+			{ ent.offset.x + (ent.anim ? ent.animOffset.x * ent.currentFrame : 0 ),
+			  ent.offset.y + (ent.anim ? ent.animOffset.y * ent.currentFrame : 0 ), 
 			  ent.hitboxes[i].width, ent.hitboxes[i].height },
 			{ ent.hitboxes[i].pos.x , ent.hitboxes[i].pos.y },
 			ent.tint);

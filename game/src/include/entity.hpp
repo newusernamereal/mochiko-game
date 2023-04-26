@@ -53,11 +53,11 @@ public:
 	Point offset = { 0 , 0 }; // offset of the texture, in px
 	std::string signText;
 	bool dontDraw = false;
-	bool Colliding(DoublePoint p);
-	inline bool Colliding(Point p) {
+	bool Colliding(const DoublePoint& p);
+	inline bool Colliding(const Point& p) {
 		return(Colliding(PointToDoublePoint(p)));
 	}
-	inline bool Colliding(EntityHitbox ent) {
+	inline bool Colliding(const EntityHitbox& ent) {
 		for (int i = 0; i < hitboxes.size(); i++) {
 			if (Colliding((DoublePoint) { ent.pos.x, ent.pos.y })) { // topleft
 				return true;
@@ -74,7 +74,7 @@ public:
 		}
 		return false;
 	}
-	inline bool Colliding(EntityContainer ent) {
+	inline bool Colliding(const EntityContainer& ent) {
 		for (int i = 0; i < ent.hitboxes.size(); i++) {
 			if (Colliding(ent.hitboxes[i])) {
 				return true;
@@ -174,8 +174,8 @@ void clearEntities(void);
 void clearEntitiesExceptFirst(void);
 
 void DrawEntity(int k);
-void DrawEntity(Entity ent);
-void DrawEntity(EntityContainer ent, int k = -1);
+void DrawEntity(Entity& ent);
+void DrawEntity(EntityContainer& ent, int k = -1);
 void DrawEntities(void);
 void MoveEntities(void);
 #endif

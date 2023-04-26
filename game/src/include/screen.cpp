@@ -104,8 +104,6 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 					currentNumber = "";
 					x++;
 					while (data[y][x] != '}') {
-						if(DEBUG)
-							std::cout << currentNumber << std::endl;
 						currentNumber += data[y][x];
 						x++;
 					}
@@ -119,15 +117,7 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 					empty.anim = true;
 				}
 				else if (data[y][x] == 'b') {
-					emptyBarrier.hitboxTexts.clear();
-					emptyBarrier.hitboxes.clear();
-					emptyBarrier.triggerID = 0;
-					if(!SQUARE_TILES)
-						emptyBarrier.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter * SCREENY / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENX / size, SCREENY / size));
-					if(SQUARE_TILES)
-						emptyBarrier.hitboxes.push_back(EntityHitbox((DoublePoint) { static_cast<double>(xcounter * SCREENY / size), static_cast<double>((y - (data.size() - (size)))* SCREENY / size) }, SCREENY / size, SCREENY / size));
-					emptyBarrier.trigger = true;
-					barriers.push_back(emptyBarrier);
+					barriers.push_back(entities.size());
 				}
 				else if (data[y][x] == 'B') {
 					if (stoi(currentNumber) || empty.trigger || empty.signText != "") {
@@ -173,25 +163,25 @@ void Screen::ReadFromFile(std::string fileName, DoublePoint player) {
 		}
 		width = xcounter;
 	}
-bool Screen::CheckMove(Point to) {
+bool Screen::CheckMove(const Point to) {
 		for (size_t i = 0; i < barriers.size(); i++) {
-			if (barriers[i].Colliding(to)) {
+			if (LOADED_ENTITIES[barriers[i]].Colliding(to)) {
 				return false;
 			}
 		}
 		return true;
 	}
-bool Screen::CheckMove(EntityContainer to) {
+bool Screen::CheckMove(const EntityContainer& to) {
 		for (size_t i = 0; i < barriers.size(); i++) {
-			if (barriers[i].Colliding(to)) {
+			if (LOADED_ENTITIES[barriers[i]].Colliding(to)) {
 				return false;
 			}
 		}
 		return true;
 	}
-bool Screen::CheckMove(EntityHitbox to) {
+bool Screen::CheckMove(const EntityHitbox& to) {
 	for (size_t i = 0; i < barriers.size(); i++) {
-		if (barriers[i].Colliding(to)) {
+		if (LOADED_ENTITIES[barriers[i]].Colliding(to)) {
 			return false;
 		}
 	}
@@ -208,7 +198,16 @@ std::optional<int> FindTrigger(int find){
 	ret.reset();
 	return ret;
 }
-
+std::optional<std::vector<int>> FindTriggerV(int find){
+	std::optional<std::vector<int>> ret; 
+	ret.reset();
+	for(int i = 0; i < LOADED_ENTITIES_HEAD; i++){
+		if(LOADED_ENTITIES[i].triggerID == find){
+			ret->push_back(i);
+		}
+	}
+	return ret;
+}
 std::optional<std::vector<int>> TriggerCollision(const Entity& Player) {
 	std::vector<int> out;
 	for (int i = 0; i < LOADED_ENTITIES_HEAD; i++) {

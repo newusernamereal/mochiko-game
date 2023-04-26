@@ -1,5 +1,12 @@
-- music
-- maps
+- maps !!!
+    - make a day -> night transition lv 1 on the triggers
+    - polish movement
+        - fix the going into moving blocks 
+    - maybe make half blocks for some cool shit
+    ^ might be hard
+- make cows and shit wander
 - possibly AI
 - moving blocks
-- make art more cartoonish
+- make karen hideout more live laugh love-y
+- add more decorative stuff (plants and art and shit)
+- on that note make everything more consistent
