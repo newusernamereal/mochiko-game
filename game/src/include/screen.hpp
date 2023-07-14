@@ -1,6 +1,5 @@
 #ifndef screen_h
 #define screen_h
-#include "engine.hpp"
 #include "entity.hpp"
 #include <fstream>
 class Screen : public BackgroundScreen { 
@@ -11,6 +10,7 @@ public:
 	double tileSizeY = 1;
 	int size = 1;
 	int width = 1;
+	int height = 1;
 	std::string fileName;
 	Screen(void) {}
 	Screen(Texture2D backin, std::vector<EntityContainer> entin);
@@ -24,4 +24,5 @@ public:
 std::optional<int> FindTrigger(int find);
 std::optional<std::vector<int>> FindTriggerV(int find);
 std::optional<std::vector<int>> TriggerCollision(const Entity& Ent);
+std::optional<std::vector<int>> TriggerCollision(const EntityContainer& Player);
 #endif

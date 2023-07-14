@@ -2,19 +2,20 @@
 #define engine_h
 #include <string>
 #include <iostream>
-#include "/home/catto/raylib/src/raylib.h"
-// Macros / global variables = SNAKE_CASE_CAPS
-// Functions / classes = PascalCase
-// Variables = camelCase
+#include "raylib/src/raylib.h"
 #define SCREENX 1024
 #define SCREENY 576
 #define ENTITY_MAX 2000
-#define DEBUG false
+#define DEBUG true
 #define DRAW_DEBUG false
 // ^^ debug for specifically drawing hitboxes, which spams console and renders a lot of other debug output unreadable with a lot of entities, but still useful.
 #define EMAX_CRASH false
 #define SQUARE_TILES true
 // ^^ if true, tiles are square, allowing for a nonsquare resolution without stretching tiles
+#define CACHE_LEVEL_TEXTURES true
+// Macros / global variables = SNAKE_CASE_CAPS
+// Functions / classes = PascalCase
+// Variables = camelCase
 class Point {
 public :
 	 int x;
@@ -22,8 +23,8 @@ public :
 };
 class DoublePoint {
 public :
-	 int x;
-	 int y;
+	 double x;
+	 double y;
 };
 class BackgroundScreen {
 public:

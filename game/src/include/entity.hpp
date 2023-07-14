@@ -111,22 +111,7 @@ public:
 	void AddToGArry(bool constructed = false);
 	Entity(EntityContainer in);
 	inline Entity operator = (Entity const& in) { // without this it would simply replace the pointers and that is usually not what is intended
-		ent->trigger = in.ent->trigger;
-		ent->anim = in.ent->anim;
-		ent->animOffset = in.ent->animOffset;
-		ent->fps = in.ent->fps;
-		ent->frames = in.ent->frames;
-		ent->triggerID = in.ent->triggerID;
-		ent->currentFrame = in.ent->currentFrame;
-		ent->time = in.ent->time;
-		ent->animDone = in.ent->animDone;
-		ent->hitboxes = in.ent->hitboxes;
-		ent->hitboxTexts = in.ent->hitboxTexts;
-		ent->tint = in.ent->tint;
-		ent->debugDrawCounter = in.ent->debugDrawCounter;
-		ent->offset = in.ent->offset;
-		ent->signText = in.ent->signText;
-		ent->dontDraw = in.ent->dontDraw;
+		*in.ent = *ent;
 		return (*this);
 	}
 	inline bool OutOfBounds() {

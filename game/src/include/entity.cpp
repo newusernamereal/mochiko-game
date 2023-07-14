@@ -92,11 +92,11 @@ void DrawEntity(EntityContainer& ent, int k){
 					std::cout << "At Draw : Entity : " << k << " Hitbox : " << i << " " << ent.hitboxes[i].pos.x << " " << ent.hitboxes[i].pos.y << std::endl;
 				}
 			}
-			if (DEBUG){
+			if (DEBUG && k > 0){
 				std::string name;
 				name = std::to_string(k) + "." + std::to_string(i) + "\n" + std::to_string(ent.triggerID); 
 				DrawRectangleLines(ent.hitboxes[i].pos.x, ent.hitboxes[i].pos.y, ent.hitboxes[i].width, ent.hitboxes[i].height, GREEN);
-				DrawText(name.c_str(), ent.hitboxes[i].pos.x, ent.hitboxes[i].pos.y, 20, BLACK);
+				DrawText(name.c_str(), ent.hitboxes[i].pos.x, ent.hitboxes[i].pos.y, 20, GREEN);
 			}
 	}
 }

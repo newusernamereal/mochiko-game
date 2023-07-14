@@ -3,7 +3,9 @@
 #include <cmath>
 #include <emscripten/emscripten.h>
 
-#define SCROLL_DEBUG true
+#define SCROLL_DEBUG false
+#define NO_FALL false
+// ^^ for testing jump height
 
 Screen currentScreen;
 Entity player;
@@ -15,9 +17,10 @@ bool dead = false;
 
 int AIDIFFICULTY = 1; // AI difficulty, affects movespeed and rate of fire
 
-const double GRAVITY = 1300; // downwards acceleration from gravity, in px/s^2
-const double JUMPSTR = 450; // upwards (one time) velocity gain from jumping, in px/s
-const int MOVESPEED = 400; // sideways velocity from moving, in px/second
+const double GRAVITY = 10; // downwards acceleration from gravity, in px/s^2
+const double JUMPSTR = 5; // upwards (one time) velocity gain from jumping, in px/s
+const int MOVESPEED = 60; // sideways acceleration from moving, in px/^2
+const int MOVESPEEDCAP = 400; // maximum sideways speed, in px/s
 
 const int TICKSPEED = 60;
 const double TICKTIME = (1.0f/(double)TICKSPEED);
@@ -26,12 +29,14 @@ const int TEXTUREBOX = 64; // size of the texture hitbox, in (px)^2 (not a squar
 const int COLLISIONBOXH = 60; // height of the collision hitbox, in px
 const int COLLISIONBOXW = 36; // width of the collision hitbox in px
 
-double SCROLLSTR = 1; // how strong the (defualt)scroll is, in tiles/sec
+double SCROLLSTR = 1;
+double SCROLLSTRY = 1;
 
 int SIGNFONTSIZE = 20; // how big the sign's font size is, in px
 int SIGNELEVATION = 150; // how high the sign text appears above the sign, in px
 
 int MOVESPD = MOVESPEED * TICKTIME;
+int MOVECAP = MOVESPEEDCAP * TICKTIME;
 
 bool HAS_KEY = false;
 int COINS = 0; // idk?? fun
@@ -42,31 +47,55 @@ std::vector<int> animPeriod;
 std::vector<int> animID;
 std::vector<float> animTime;
 
-void Shmove();
-bool OutOfBounds(DoublePoint in);
-bool OutOfBounds(EntityHitbox in);
-bool OnGround();
-bool OnGround(Point in);
-bool InGround();
-bool InGround(Point in);
-bool InGround(DoublePoint in);
-void SnapToFloor();
-bool WallAboveHead();
-void _MoveSideways();
-void PushOut(int k);
+bool OnGround(){
+	if(!currentScreen.CheckMove(player.hitboxes[0]))
+		return false;
+	bool flag;
+	player.hitboxes[0].pos.y += 1;
+	flag = !currentScreen.CheckMove(player.hitboxes[0]);
+	player.hitboxes[0].pos.y -= 1;
+	return flag;
+}
 
+bool SnapIfClose(int r = 5){
+	for(int i = 0; i < r; i++){
+		player.hitboxes[0].pos.y += i;
+		if(OnGround())
+			return true;
+		player.hitboxes[0].pos.y -= 2 * i;
+		if(OnGround())
+			return true;
+		player.hitboxes[0].pos.y += i;
+	}
+	return false;
+}
+
+class Input{
+public:
+	DoublePoint dir = {0,0};
+	bool justJumped = false;
+	bool discardSide = false;
+	bool lastRight = true;
+	void GetInput();
+	void ResetInput(){
+		dir = {0,0};
+	}
+};
+
+void Shmove(Input& playerInput);
 void ChangeTexture(bool right, bool flying = false);
 
 void ScrollScreen(bool reset = false);
 void MoveEverything(double dir);
+void MoveEverythingY(double dir);
 
 void ReadSign();
 void FixTextures();
 
 void ReadMoving();
-void AnimMoving(bool backwards = false);
+bool AnimMoving(Input& playerInput,bool backwards = false);
 
-void StartScreen();
+bool StartScreen(Music &music);
 void DeathScreen();
 void InitGame();
 
@@ -86,69 +115,62 @@ void NextLevel();
 
 void SwitchMusic(Music& currentMusic);
 
+void WanderAminals();
+
+inline void Tick(double &time, Input &playerInput, DoublePoint &old, std::string &world, Music &music);
+
 void UpdateDrawFrame(){
 	static Texture2D hudKey = LoadTexture("assets/still_key.png");
 	static Texture2D noKeys = LoadTexture("assets/keyless.png");
 	static Music music;
 	static double time = 0;
 	static std::string world = "";
-	static DoublePoint old = {0,0};
-	static double tps = 0;
+	static Input playerInput;
+	static DoublePoint old;
+	static Image screen;
+	static Texture2D screenText;
+	static Shader shader = LoadShader(0, TextFormat("shader/crt.glsl", 100));
+	if(!IsAudioDeviceReady()){
+		InitAudioDevice();
+	}
 	time += GetFrameTime();
 	if(!started){
-		if(DEBUG)
-			DrawFPS(0,SCREENY - 100);
-		StartScreen();
-		return;
+		if(StartScreen(music)){
+			return;
+		}
 	}
 	if(dead){
 		if(DEBUG)
 			DrawFPS(0,SCREENY - 100);
 		SeekMusicStream(music,0.0f);
 		DeathScreen();
+		playerInput.ResetInput();
 		return;
 	}
-	if(time > TICKTIME) { // tick
-		tps = time;
-		time = 0;
-		if(!IsAudioDeviceReady()){
-			InitAudioDevice();
+	if(DEBUG && !dead && started){
+		if(IsKeyPressed(KEY_F2)){
+			currentScreen.fileName = "assets/LevelTwo.ce";
+			InitGame();
 		}
-		AnimMoving();
-		Shmove();
-		SCROLLSTR = ((player.hitboxes[0].pos.x - old.x) / currentScreen.tileSizeX);
-		ScrollScreen();
-		UpdateKarens();
-		PickUpKey();
-		PickUpCoin();
-		UseDoor();
-		if (CollisionsContain(3,true))
-			dead = true;
-		
-		if (CollisionsContain(4))
-			HAS_KEY = true;
-		
-		if(dead){
-			old = player.hitboxes[0].pos;
-			if(DEBUG)
-				DrawFPS(0,SCREENY - 100);
-			SeekMusicStream(music,0.0f);
-			DeathScreen();
-			return;
-		}
-		if(world != currentScreen.fileName)
-			SwitchMusic(music);
-		world = currentScreen.fileName;
-		old = player.hitboxes[0].pos;
+	}
+	playerInput.GetInput();
+	if(time > TICKTIME) {
+		Tick(time, playerInput, old, world, music);
 	}
 	UpdateMusicStream(music);
 	player.hitboxes[1].pos = DoublePoint{ player.hitboxes[0].pos.x -  0.5 * (TEXTUREBOX - COLLISIONBOXW) , player.hitboxes[0].pos.y -  0.5 * (TEXTUREBOX - COLLISIONBOXH) };
 	BeginDrawing();
 		currentScreen.Draw();
 		DrawEntities();
-		DrawTextureRec(HAS_KEY ? hudKey : noKeys,{0,0,64,64},{0,0},WHITE);
 		ReadSign();
-		DrawText(std::to_string(tps).c_str(), 0, SCREENY - 128,20,BLACK);
+/*		screen = LoadImageFromScreen();
+		UnloadTexture(screenText);
+		screenText = LoadTextureFromImage(screen);
+		free(screen.data);
+		ClearBackground(WHITE);
+	BeginShaderMode(shader);
+		DrawTexture(screenText, 0, 0, WHITE);
+	EndShaderMode(); */
 	EndDrawing();
 }
 
@@ -167,157 +189,101 @@ int main(){
 #endif
 }
 
-void Shmove(){ // not proud of this one
-	static bool bonked = false;
-	static double timeOnGround = 0;
-	static double timeInAir = 0;
-	static bool lastMoveRight = true;
-	bool movingSideways = false;
-	// y stuff
-	if((IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) && OnGround() && timeOnGround &&
-		!InGround(DoublePoint{ player.hitboxes[0].pos.x, player.hitboxes[0].pos.y - JUMPSTR * TICKTIME}) ){
-		if(DEBUG)
-			std::cout << "Jumped" << std::endl;
-		yVelo = JUMPSTR;
-		timeOnGround = 0;
-	}
-	bonked = WallAboveHead();
-	bonked ? yVelo *= -1 : yVelo *= 1;
-	if(!OnGround()){
-		timeInAir += TICKTIME;
-		yVelo -= (GRAVITY * TICKTIME);
-		timeOnGround = 0;
-		if(timeInAir > 0.1)
-			ChangeTexture(lastMoveRight,true);
+void Input::GetInput(){
+	if((IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) ^ (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))){
+		if(!discardSide){
+			dir.x += (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) ? MOVESPD : -1 * MOVESPD;
+			lastRight = (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D));
+		}
 	}
 	else{
-		timeInAir = 0;
-		ChangeTexture(lastMoveRight,false);
-		timeOnGround += TICKTIME;
+		dir.x = 0;
+		discardSide = false;
 	}
-	player.hitboxes[0].pos.y -= yVelo * TICKTIME;
-	if(InGround()){
-		SnapToFloor();
-	}
-	if(OnGround()){
-		yVelo = 0;
-	}
-	// x stuff
-	if(IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)){
-		xVelo = -1.0f * MOVESPD;
-		movingSideways = true;
-	}
-	if(IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)){
-		xVelo = MOVESPD;
-		movingSideways = !(IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A));
-	}
-	if(!((IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) ^ (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))))
-		xVelo = 0;
-	if(xVelo){
-		_MoveSideways();
-	}
-	if(movingSideways){
-		xVelo < 0 ? ChangeTexture(false, !OnGround()) : ChangeTexture(true, !OnGround());
-		lastMoveRight = xVelo > 0;
-	}
-}
-
-inline bool OutOfBounds(DoublePoint in){
-	if(in.x > SCREENX || in.x < 0){
-		return true;
-	}
-	if(in.y > SCREENY || in.y < 0){
-		return true;
-	}
-	return false;
-}
-
-inline bool OutOfBounds(EntityHitbox in){
-	if(OutOfBounds(in.pos))
-		return true;
-	if(OutOfBounds(DoublePoint{in.pos.x, in.pos.y + in.height}))
-		return true;
-	if(OutOfBounds(DoublePoint{in.pos.x + in.width, in.pos.y}))
-		return true;
-	if(OutOfBounds(DoublePoint{in.pos.x + in.width, in.pos.y + in.height}))
-		return true;
-	return false;
-}
-
-inline bool OnGround(){
-	return (player.hitboxes[0].pos.y + COLLISIONBOXH == SCREENY) || (!currentScreen.CheckMove(EntityHitbox(DoublePoint{player.hitboxes[0].pos.x,player.hitboxes[0].pos.y + COLLISIONBOXH}, COLLISIONBOXW,1)));
-}
-
-inline bool WallAboveHead(){
-	return (!currentScreen.CheckMove(EntityHitbox(Point{ player.hitboxes[0].pos.x,player.hitboxes[0].pos.y - yVelo * TICKTIME }, COLLISIONBOXW , 1 )));
-}
-
-inline bool OnGround(Point in){
-	return (in.y + COLLISIONBOXH == SCREENY) || (!currentScreen.CheckMove(EntityHitbox(DoublePoint{in.x,in.y + COLLISIONBOXH}, COLLISIONBOXW,1)));
-}
-
-inline bool InGround(){
-	return (player.hitboxes[0].pos.y + COLLISIONBOXH > SCREENY) || !(currentScreen.CheckMove(EntityHitbox(player.hitboxes[0].pos, COLLISIONBOXW,COLLISIONBOXH)));
-}
-
-inline bool InGround(Point in){
-	return (in.y + COLLISIONBOXH > SCREENY) || !(currentScreen.CheckMove(EntityHitbox(in, COLLISIONBOXW,COLLISIONBOXH)));
-}
-
-inline bool InGround(DoublePoint in){
-	return (in.y + COLLISIONBOXH > SCREENY) || !(currentScreen.CheckMove(EntityHitbox(in, COLLISIONBOXW,COLLISIONBOXH)));
-}
-
-void SnapToFloor(){
-	yVelo = 0;
-	xVelo = 0;
-	player.hitboxes[0].pos.y -= currentScreen.tileSizeY;
-	if(DEBUG)
-		std::cout << "trying to snap\n";
-	int searchUp = player.hitboxes[0].pos.y;
-	int searchDown = player.hitboxes[0].pos.y;
-	for(int i = 0; i < std::max(player.hitboxes[0].pos.y, SCREENY - player.hitboxes[0].pos.y); i++){
-		// find the nearest floor, starting from the feet
-		if(OnGround(Point{ player.hitboxes[0].pos.x , searchUp }) && !InGround(Point{ player.hitboxes[0].pos.x , searchUp })){
-			if(DEBUG)
-				std::cout << "found a floor up: " << searchUp << "\n";
-			player.hitboxes[0].pos.y = searchUp;
-			return;
+	
+	if((OnGround() || CollisionsContain(787)) && (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W) || IsKeyDown(KEY_SPACE))){
+		std::cout << "JHUMPED !!! \n";
+		dir.y = -1 * JUMPSTR;
+		justJumped = true;
+		if(CollisionsContain(787)){ // remove double jump orb 
+			if(FindTrigger(787).has_value()){
+				std::cout << "trigger collision player : " << FindTrigger(787).value() << std::endl;
+				LOADED_ENTITIES[FindTrigger(787).value()].dontDraw = true;
+				LOADED_ENTITIES[FindTrigger(787).value()].triggerID = 0; // evil
+			}
 		}
-		if(OnGround(Point{ player.hitboxes[0].pos.x, searchDown })){
-			if(DEBUG)
-				std::cout << "found a floor down: " << searchDown << "\n";
-			player.hitboxes[0].pos.y = searchDown;
-			return;
-		}
-		searchDown++;
-		searchUp--;
 	}
-	// no floors on this x, should never get here because y = SCREENY is always a floor, but just in case
-	player.hitboxes[0].pos.y = SCREENY - COLLISIONBOXH - 1;
+	// clamp x and y speeds
+	if(dir.y < -1 * JUMPSTR) // hacky
+		dir.y = -1 * JUMPSTR;
+	if(std::abs(dir.x) > MOVECAP)
+		dir.x = MOVECAP * (std::abs(dir.x)/dir.x);
+}
+
+void Shmove(Input& playerInput){
+	if(!started){
+		return;
+	}
+	static bool flying = true;
+	
+	if(OnGround() && !playerInput.justJumped)
+		playerInput.dir.y = 0;
+	else{
+		playerInput.dir.y += TICKTIME * GRAVITY;
+		if(NO_FALL && playerInput.dir.y < 0)
+			playerInput.dir.y = 0;
+		playerInput.justJumped = false;
+	}
+	player.hitboxes[0].pos.x += playerInput.dir.x;
+	if(!currentScreen.CheckMove(player.hitboxes[0]) || player.hitboxes[0].pos.x < 0 || player.hitboxes[0].pos.y > SCREENX){
+		player.hitboxes[0].pos.x -= playerInput.dir.x;
+		playerInput.dir.x = 0;
+	}
+
+	player.hitboxes[0].pos.y += playerInput.dir.y;
+	if(!currentScreen.CheckMove(player.hitboxes[0])){
+		player.hitboxes[0].pos.y -= playerInput.dir.y;
+		playerInput.dir.y *= -1;
+	}
+	if (playerInput.dir.y != 0){
+		flying = true;
+	}
+
+	if (SnapIfClose(playerInput.dir.y * 2)){
+		playerInput.dir.y = 0;
+		flying = false;
+	}
+
+	ChangeTexture(playerInput.lastRight,flying);
 }
 
 void ScrollScreen(bool reset){
-	static double pos = 0;
-	static double oldpos = pos;
+	static DoublePoint pos = {0,0};
+	static DoublePoint oldpos = pos;
 	static Entity screenAnchor;
 	static bool init = false;
-	static double upperBound = currentScreen.width - ((double)SCREENX/(double)currentScreen.tileSizeX); // how far right you can scroll
+	static Texture2D anchorText = LoadTexture("assets/transparent.png");
+	static double upperBound = currentScreen.width - ((double)SCREENX/(double)currentScreen.tileSizeX); 
+	// how far right you can scroll
+	static double lowerBoundY = currentScreen.height - ((double)SCREENY/(double)currentScreen.tileSizeY);
+	// how far down you can scroll
 	if(!init){
 		screenAnchor.addBox(EntityHitbox(0,0,1,1));
-		screenAnchor.addTexture(LoadTexture("assets/transparent.png"));
+		screenAnchor.addTexture(anchorText);
+		screenAnchor.DontDraw(true);
 		init = true;
 	}
 	if (reset){
 		std::cout << "resetting scroll" << std::endl;
-		pos = 0;
+		pos = {0,0};
 		upperBound = currentScreen.width - ((double)SCREENX/(double)currentScreen.tileSizeX);
 		screenAnchor.AddToGArry();
 		screenAnchor.addBox(EntityHitbox(0,0,1,1));
 		screenAnchor.DontDraw(true);
+		screenAnchor.addTexture(anchorText);
 		currentScreen.offset.x = screenAnchor.hitboxes[0].pos.x; 
-		if(oldpos - pos)
-			std::cout << "new pos : " << pos << std::endl;
+		if(((oldpos.x - pos.x) || (oldpos.y - pos.y)) && SCROLL_DEBUG)
+			std::cout << "new pos : " << pos.x << " , " << pos.y << std::endl;
 		oldpos = pos;
 		return;
 	}
@@ -328,79 +294,137 @@ void ScrollScreen(bool reset){
 	if((currentScreen.offset.x + (2.0f * (float)currentScreen.background.width / 3.0f)) < SCREENX / 2)
 		screenAnchor.hitboxes[0].pos.x += (float)currentScreen.background.width / 3.0f;
 
-	if((CollisionsContain(1) || CollisionsContain(2)) && pos + SCROLLSTR <= upperBound && pos + SCROLLSTR >= 0){
+	if((CollisionsContain(1) || CollisionsContain(2)) && pos.x + SCROLLSTR <= upperBound && pos.x + SCROLLSTR >= 0){
 		if ((CollisionsContain(1) && (std::abs(SCROLLSTR) / SCROLLSTR) == 1) ||
 			(CollisionsContain(2) && (std::abs(SCROLLSTR) / SCROLLSTR) == -1)  ){
 			MoveEverything(-1.0f * SCROLLSTR);
-			pos += SCROLLSTR;
+			pos.x += SCROLLSTR;
 		}
 		currentScreen.offset.x = screenAnchor.hitboxes[0].pos.x; // quick and dirty
-		oldpos = pos;
-		return;
+	}	
+	if((CollisionsContain(443) || CollisionsContain(449))
+		&& pos.y + SCROLLSTRY <= lowerBoundY && pos.y + SCROLLSTRY >= 0){
+		if ((CollisionsContain(443) && (std::abs(SCROLLSTRY) / SCROLLSTRY) == -1) ||
+			(CollisionsContain(449) && (std::abs(SCROLLSTRY) / SCROLLSTRY) == 1)  ){
+			MoveEverythingY(-1.0f * SCROLLSTRY);
+			pos.y += SCROLLSTRY;
+		}
 	}
+	oldpos = pos;
 }
 
 void MoveEverything(double dir){
 	for(int i = 0; i < LOADED_ENTITIES_HEAD; i++){
-		if(LOADED_ENTITIES[i].triggerID != 1 && LOADED_ENTITIES[i].triggerID != 2){
-			for(int k = 0; k < LOADED_ENTITIES[i].hitboxes.size(); k++){
-				LOADED_ENTITIES[i].hitboxes[k].pos.x += (int)(dir * currentScreen.tileSizeX);
-//				if (SCROLL_DEBUG)
-//					std::cout << "Moving hitbox " << k << " of entity " << i << " to " << LOADED_ENTITIES[i].hitboxes[k].pos.x << " (" << dir << " * " << currentScreen.tileSizeX << ") pixels" << std::endl;
-			}
+		if(LOADED_ENTITIES[i].triggerID == 1 || LOADED_ENTITIES[i].triggerID == 2
+		|| LOADED_ENTITIES[i].triggerID == 443 || LOADED_ENTITIES[i].triggerID == 449){
+			if(++i < LOADED_ENTITIES_HEAD)
+				return;	
+		}
+		for(int k = 0; k < LOADED_ENTITIES[i].hitboxes.size(); k++){
+			LOADED_ENTITIES[i].hitboxes[k].pos.x += (int)(dir * currentScreen.tileSizeX);
+			if (SCROLL_DEBUG)
+				std::cout << "Moving hitbox " << k << " of entity " << i << " to " << LOADED_ENTITIES[i].hitboxes[k].pos.x << " (" << dir << " * " << currentScreen.tileSizeX << ") pixels" << std::endl;
 		}
 	}
 }
 
-void StartScreen(){
-	static Entity startText;
-	static Music startMusic;
-	static double anim = 0;
-	static int frameCounter = 0;
-	static bool up = true;
+void MoveEverythingY(double dir){
+	for(int i = 0; i < LOADED_ENTITIES_HEAD; i++){
+		if(LOADED_ENTITIES[i].triggerID == 1 || LOADED_ENTITIES[i].triggerID == 2
+		|| LOADED_ENTITIES[i].triggerID == 443 || LOADED_ENTITIES[i].triggerID == 449){
+			if(++i < LOADED_ENTITIES_HEAD)
+				return;	
+		}
+		for(int k = 0; k < LOADED_ENTITIES[i].hitboxes.size(); k++){
+			LOADED_ENTITIES[i].hitboxes[k].pos.y += (int)(dir * currentScreen.tileSizeY);
+			if (SCROLL_DEBUG)
+				std::cout << "Moving hitbox " << k << " of entity " << i << " to " << LOADED_ENTITIES[i].hitboxes[k].pos.y << " (" << dir << " * " << currentScreen.tileSizeY << ") pixels" << std::endl;
+		}
+	}
+}
 
+bool StartScreen(Music &music){
+	static const Texture logoText = LoadTexture("assets/mochiko_title.png");
+	static const int START = 1;
+	static const int CREDITS = 2;
+	static bool showing_credits = false;
 	static bool init = false;
+	static int selection = START;
+	
 	if (!init){
-		startMusic = LoadMusicStream("assets/start_screen.wav");
-		SeekMusicStream(startMusic,0.0f);
-		SetMusicVolume(startMusic, 0.3);
-		PlayMusicStream(startMusic);
-		startText.addTexture(LoadTexture("assets/start.png"));
-		startText.addBox(EntityHitbox(Point{266,138},492,300));
+		SwitchMusic(music);
+		currentScreen.fileName = "assets/start_screen.ce";
+		currentScreen.ReadFromFile(currentScreen.fileName);
+		currentScreen.Load();
+
+		// set title dimensions
+		LOADED_ENTITIES[0].hitboxes[0].width = 816;
+		LOADED_ENTITIES[0].hitboxes[0].height = 53;
+		LOADED_ENTITIES[0].offset = {0,0};
+		LOADED_ENTITIES[0].anim = false;
+		LOADED_ENTITIES[0].hitboxes[0].pos = {104,0};
+		LOADED_ENTITIES[0].hitboxTexts.push_back(logoText);
+
+		// set start dimensions and anim
+		LOADED_ENTITIES[1].hitboxes[0].width = 236;
+		LOADED_ENTITIES[1].hitboxes[0].height = 120;
+		LOADED_ENTITIES[1].anim = true;
+		LOADED_ENTITIES[1].animOffset = {236,0};
+		LOADED_ENTITIES[1].frames = 4;
+		LOADED_ENTITIES[1].fps = 5;
+		LOADED_ENTITIES[1].hitboxes[0].pos.x = 394;
+
+		// set credits dimensions and anim
+		LOADED_ENTITIES[2].hitboxes[0].width = 236;
+		LOADED_ENTITIES[2].hitboxes[0].height = 120;
+		LOADED_ENTITIES[2].anim = true;
+		LOADED_ENTITIES[2].animOffset = {236,0};
+		LOADED_ENTITIES[2].fps = 5;
+		LOADED_ENTITIES[2].hitboxes[0].pos.x = 394;
+
 		init = true;
 	}
-	if(IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)){
-		StopMusicStream(startMusic);
-		InitGame();
-		started = true;
-		return;
+	if(((IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) && selection == START)
+	 ||((IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) && selection == CREDITS)){ 
+		// switch selection (since there're only two)
+		selection = (selection == CREDITS) ? START : CREDITS;
 	}
-	anim += GetFrameTime();
-	UpdateMusicStream(startMusic);
-	if(anim >= 0.2){
-		anim = 0;
-		frameCounter++;
-		if(up){
-			startText.hitboxes[0].pos.y -= 5;
+	// set the selection offset
+	(selection == CREDITS) ? LOADED_ENTITIES[2].offset = {0,120} : LOADED_ENTITIES[1].offset = {0,120};
+	// unset the unselected offset
+	(selection == CREDITS) ? LOADED_ENTITIES[1].offset = {0,0} : LOADED_ENTITIES[2].offset = {0,0};
+	if(IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)){
+		if(showing_credits){
+			showing_credits = false;
+			return false;
 		}
-		else{
-			startText.hitboxes[0].pos.y += 5;
+		if(selection == CREDITS){
+			showing_credits = true;
+		}
+		if(selection == START){
+			clearEntities();
+			currentScreen.entities.clear();
+			InitGame();
+			started = true;
+			return false;
 		}
 	}
-	if(frameCounter > 5){
-		frameCounter = 0;
-		up = !up;
+	if(showing_credits){
+		// draw credits 
+		BeginDrawing();
+			ClearBackground(WHITE);
+			DrawText("Coding by Emelia Aleksanyan\nEngine by Emelia Aleksanyan\nPixel art by Emelia Aleksanyan\nMusic by Emelia Aleksanyan\nMapping by Dash Raimond",300,100,SIGNFONTSIZE,BLACK);
+			DrawText("[PRESS ENTER TO CONTINUE]",300,300,SIGNFONTSIZE,GRAY);
+		EndDrawing();
+		return true; // return early from the updatedraw cycle, get control of drawing
 	}
-	BeginDrawing();
-		ClearBackground(WHITE);
-		DrawEntity(startText);
-	EndDrawing();
+	return false;
 }
 
 void DeathScreen(){
 	static Entity deathText;
 	static Entity plosion;
-	static Music deathMusic; 
+	static Music deathMusic = LoadMusicStream("assets/death_screen.wav"); 
 	static Texture2D text = LoadTexture("assets/death.png");
 	static Texture2D plosionText = LoadTexture("assets/ploded.png");
 
@@ -412,8 +436,7 @@ void DeathScreen(){
 	static bool init = false;
 	static bool alive = false;
 	static bool finishedAnim = false;
-	if (!init){
-		deathMusic = LoadMusicStream("assets/death_screen.wav");  
+	if (!init){  
 		deathText.AddToGArry();
 		plosion.AddToGArry();
 		deathText.addTexture(text);
@@ -487,8 +510,10 @@ void DeathScreen(){
 }
 
 void InitGame(){ // i'm really tired
-	static Entity leftScroll;
-	static Entity rightScroll;
+	Entity leftScroll;
+	Entity rightScroll;
+	Entity topScroll;
+	Entity bottomScroll;
 	static Texture2D sky = LoadTexture("assets/sky.png");
 	static Texture2D night = LoadTexture("assets/night.png");
 	if(DEBUG)
@@ -517,6 +542,8 @@ void InitGame(){ // i'm really tired
 	// add scrolls to the array
 	leftScroll.AddToGArry();
 	rightScroll.AddToGArry();
+	topScroll.AddToGArry();
+	bottomScroll.AddToGArry();
 
 	// set up left scroll hitbox
 	leftScroll.addBox(EntityHitbox(0,0,64,SCREENY));
@@ -529,6 +556,24 @@ void InitGame(){ // i'm really tired
 	rightScroll.ent->triggerID = 1;
 	rightScroll.ent->trigger = true;
 	rightScroll.ent->dontDraw = true;
+	
+	// set up top scroll hitbox
+	topScroll.addBox(EntityHitbox(0,
+								  SCREENY - (64 * 9),
+								  SCREENX,
+								  64));
+	topScroll.ent->triggerID = 443;
+	topScroll.ent->trigger = true;
+	topScroll.ent->dontDraw = true;
+
+	// set up bottom scroll hitbox
+	bottomScroll.addBox(EntityHitbox(0,
+								  SCREENY - (64 * 1),
+								  SCREENX,
+								  64));	
+	bottomScroll.ent->triggerID = 449;
+	bottomScroll.ent->trigger = true;
+	bottomScroll.ent->dontDraw = true;
 
 	// set up sky
 	if(currentScreen.fileName == "assets/LevelOne.ce"){
@@ -564,21 +609,6 @@ void ChangeTexture(bool right, bool flying){
 		return;
 	}
 	player.Offset()->x = 64 + (flying ? 128 : 0);
-}
-
-void _MoveSideways(){
-	AnimMoving();
-	EntityHitbox checkX(DoublePoint{player.hitboxes[0].pos.x + xVelo, player.hitboxes[0].pos.y - yVelo * TICKTIME},COLLISIONBOXW,COLLISIONBOXH);
-	if(!currentScreen.CheckMove(checkX) || player.hitboxes[0].pos.x + xVelo > SCREENX || player.hitboxes[0].pos.x + xVelo < 0){
-		AnimMoving(true);
-		return;
-	}
-	if(InGround(checkX.pos)){
-		AnimMoving(true);
-		return;
-	}
-	AnimMoving(true);
-	player.hitboxes[0].pos = DoublePoint{player.hitboxes[0].pos.x + xVelo, player.hitboxes[0].pos.y};
 }
 
 void ReadSign(){
@@ -759,8 +789,12 @@ void NextLevel(){
 }
 
 void SwitchMusic(Music& currentMusic){
+	static Music world_start = LoadMusicStream("assets/start_screen.wav");
 	static Music world1 = LoadMusicStream("assets/world_1.mp3");
 	static Music world2 = LoadMusicStream("assets/world_2.mp3");
+	if(currentScreen.fileName == "assets/start_screen.ce"){
+		currentMusic = world_start;
+	}
 	if(currentScreen.fileName == "assets/LevelOne.ce"){
 		currentMusic = world1;
 	}
@@ -770,6 +804,7 @@ void SwitchMusic(Music& currentMusic){
 	if(currentScreen.fileName == "assets/LevelThree.ce"){
 		
 	}
+	SeekMusicStream(currentMusic,0.0f);
 	PlayMusicStream(currentMusic);
 }
 
@@ -793,7 +828,7 @@ void ReadMoving(){
 	}
 }
 
-void AnimMoving(bool backwards){
+bool AnimMoving(Input& playerInput, bool backwards){
 	int move;
 	for(int i = 0; i < animID.size(); i++){
 		animTime[i] += backwards ? TICKTIME * -1.0f : TICKTIME;
@@ -805,31 +840,67 @@ void AnimMoving(bool backwards){
 			animTime[i] = 0;
 		LOADED_ENTITIES[animID[i]].hitboxes[0].pos.x += move;
 		if(player.Colliding(LOADED_ENTITIES[animID[i]])){
-			player.hitboxes[0].pos.x += move;
+			playerInput.dir.x += move;
+			if(player.hitboxes[0].pos.y + COLLISIONBOXH > LOADED_ENTITIES[animID[i]].hitboxes[0].pos.y){ // player is in the thing
+				playerInput.dir.x -= move;
+				int side = (player.hitboxes[0].pos.x - LOADED_ENTITIES[animID[i]].hitboxes[0].pos.x) / 
+				   std::abs(player.hitboxes[0].pos.x - LOADED_ENTITIES[animID[i]].hitboxes[0].pos.x);
+				player.hitboxes[0].pos.x += side * std::abs(move - playerInput.dir.x); 
+			}
 		}
 	}
+	return false;
 }
 
-void PushOut(int k){
-	DoublePoint centerOfBlock = {
-	(LOADED_ENTITIES[k].hitboxes[0].pos.x + LOADED_ENTITIES[k].hitboxes[0].width / 2) ,
-	(LOADED_ENTITIES[k].hitboxes[0].pos.y + LOADED_ENTITIES[k].hitboxes[0].height / 2)};
-	DoublePoint centerOfPlayer = {
-		player.hitboxes[0].pos.x + COLLISIONBOXW / 2,
-		player.hitboxes[0].pos.y + COLLISIONBOXH / 2
-	};
-	double r = std::sqrt(
-			((centerOfBlock.x - centerOfPlayer.x) * (centerOfBlock.x - centerOfPlayer.x)) +
-			((centerOfBlock.y - centerOfPlayer.y) * (centerOfBlock.y - centerOfPlayer.y))  );
-	double theta = std::atan2(centerOfBlock.y - centerOfPlayer.y,centerOfBlock.x - centerOfPlayer.x);
-	DoublePoint dCartesian = {
-		r * std::cos(theta),
-		r * std::sin(theta)
-	};
-	player.hitboxes[0].pos.x += dCartesian.x;
-	player.hitboxes[0].pos.y += dCartesian.y;
-	std::cout << dCartesian.x << " " << dCartesian.y << " dCx: " << (centerOfBlock.x - centerOfPlayer.x) <<
-	" dCy: " << (centerOfBlock.y - centerOfPlayer.y) << " r: " << r << " theta: " << theta << std::endl;
+void WanderAminals(){ // fix this shit 
+/*
+	const static int threshold = 45;
+	const static int speed = 2;
+	auto res;
+	for(int i = 0; i < LOADED_ENTITIES_HEAD; i++){
+		if(std::abs(LOADED_ENTITIES[i].triggerID) == 7){
+			LOADED_ENTITIES[i].hitboxes[0].pos.x += (LOADED_ENTITIES[i].triggerID / 7) * speed;
+			res = TriggerCollision(LOADED_ENTITIES[i]);
+			if (res.has_value() && res.){
+				LOADED_ENTITIES[i].hitboxes[0].pos.x -= (LOADED_ENTITIES[i].triggerID / 7) * speed;
+				LOADED_ENTITIES[i].triggerID *= -1;
+			}
+			else
+				LOADED_ENTITIES[i].hitboxes[0].pos.x += (LOADED_ENTITIES[i].triggerID / 7) * speed;
+
+			LOADED_ENTITIES[i].hitboxes[0].pos.x += (LOADED_ENTITIES[i].triggerID / 7) * speed;
+		}
+	} */
 }
 
-void Wander
+inline void Tick(double &time, Input &playerInput, DoublePoint &old, std::string &world, Music &music){
+		time = 0;
+		WanderAminals();
+		AnimMoving(playerInput);
+		Shmove(playerInput);
+		SCROLLSTR = ((player.hitboxes[0].pos.x - old.x) / currentScreen.tileSizeX);
+		SCROLLSTRY = ((player.hitboxes[0].pos.y - old.y) / currentScreen.tileSizeY);
+		ScrollScreen();
+		UpdateKarens();
+		PickUpKey();
+		PickUpCoin();
+		UseDoor();
+		if (CollisionsContain(3,true))
+			dead = true;
+		
+		if (CollisionsContain(4))
+			HAS_KEY = true;
+		
+		if(dead){
+			old = player.hitboxes[0].pos;
+			if(DEBUG)
+				DrawFPS(0,SCREENY - 100);
+			SeekMusicStream(music,0.0f);
+			DeathScreen();
+			return;
+		}
+		if(world != currentScreen.fileName)
+			SwitchMusic(music);
+		world = currentScreen.fileName;
+		old = player.hitboxes[0].pos;
+}
