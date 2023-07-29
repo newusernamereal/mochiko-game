@@ -2,6 +2,7 @@
 #define screen_h
 #include "entity.hpp"
 #include <fstream>
+#include <optional>
 class Screen : public BackgroundScreen { 
 public:
 	std::vector<EntityContainer> entities;

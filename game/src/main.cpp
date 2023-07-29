@@ -2,50 +2,8 @@
 #include <iostream>
 #include <cmath>
 #include <emscripten/emscripten.h>
-
-#define SCROLL_DEBUG false
-#define NO_FALL false
-// ^^ for testing jump height
-
-Screen currentScreen;
-Entity player;
-double yVelo = 0;
-double xVelo = 0;
-
-bool started = false;
-bool dead = false;
-
-int AIDIFFICULTY = 1; // AI difficulty, affects movespeed and rate of fire
-
-const double GRAVITY = 10; // downwards acceleration from gravity, in px/s^2
-const double JUMPSTR = 5; // upwards (one time) velocity gain from jumping, in px/s
-const int MOVESPEED = 60; // sideways acceleration from moving, in px/^2
-const int MOVESPEEDCAP = 400; // maximum sideways speed, in px/s
-
-const int TICKSPEED = 60;
-const double TICKTIME = (1.0f/(double)TICKSPEED);
-
-const int TEXTUREBOX = 64; // size of the texture hitbox, in (px)^2 (not a square measurement)
-const int COLLISIONBOXH = 60; // height of the collision hitbox, in px
-const int COLLISIONBOXW = 36; // width of the collision hitbox in px
-
-double SCROLLSTR = 1;
-double SCROLLSTRY = 1;
-
-int SIGNFONTSIZE = 20; // how big the sign's font size is, in px
-int SIGNELEVATION = 150; // how high the sign text appears above the sign, in px
-
-int MOVESPD = MOVESPEED * TICKTIME;
-int MOVECAP = MOVESPEEDCAP * TICKTIME;
-
-bool HAS_KEY = false;
-int COINS = 0; // idk?? fun
-
-// for moving blocks
-const double animPeriodTime = 6;
-std::vector<int> animPeriod;
-std::vector<int> animID;
-std::vector<float> animTime;
+#include "scroll.hpp"
+#include "globals.hpp"
 
 bool OnGround(){
 	if(!currentScreen.CheckMove(player.hitboxes[0]))
@@ -103,9 +61,6 @@ void InitKarens();
 void UpdateKarens();
 void KarenAI(int ent);
 void AttackPlayer(int source);
-
-bool CollisionsContain(int x, bool update = false);
-bool CollisionsContain(EntityContainer ent, int x, bool update = false);
 
 void PickUpKey();
 void PickUpCoin();
@@ -255,92 +210,6 @@ void Shmove(Input& playerInput){
 	}
 
 	ChangeTexture(playerInput.lastRight,flying);
-}
-
-void ScrollScreen(bool reset){
-	static DoublePoint pos = {0,0};
-	static DoublePoint oldpos = pos;
-	static Entity screenAnchor;
-	static bool init = false;
-	static Texture2D anchorText = LoadTexture("assets/transparent.png");
-	static double upperBound = currentScreen.width - ((double)SCREENX/(double)currentScreen.tileSizeX); 
-	// how far right you can scroll
-	static double lowerBoundY = currentScreen.height - ((double)SCREENY/(double)currentScreen.tileSizeY);
-	// how far down you can scroll
-	if(!init){
-		screenAnchor.addBox(EntityHitbox(0,0,1,1));
-		screenAnchor.addTexture(anchorText);
-		screenAnchor.DontDraw(true);
-		init = true;
-	}
-	if (reset){
-		std::cout << "resetting scroll" << std::endl;
-		pos = {0,0};
-		upperBound = currentScreen.width - ((double)SCREENX/(double)currentScreen.tileSizeX);
-		screenAnchor.AddToGArry();
-		screenAnchor.addBox(EntityHitbox(0,0,1,1));
-		screenAnchor.DontDraw(true);
-		screenAnchor.addTexture(anchorText);
-		currentScreen.offset.x = screenAnchor.hitboxes[0].pos.x; 
-		if(((oldpos.x - pos.x) || (oldpos.y - pos.y)) && SCROLL_DEBUG)
-			std::cout << "new pos : " << pos.x << " , " << pos.y << std::endl;
-		oldpos = pos;
-		return;
-	}
-	// tile sky to save memory. there's definitely a better way to do this
-	currentScreen.offset.x = screenAnchor.hitboxes[0].pos.x;
-	if((currentScreen.offset.x + ((float)currentScreen.background.width / 3.0f)) > SCREENX / 2)
-		screenAnchor.hitboxes[0].pos.x -= (float)currentScreen.background.width / 3.0f;
-	if((currentScreen.offset.x + (2.0f * (float)currentScreen.background.width / 3.0f)) < SCREENX / 2)
-		screenAnchor.hitboxes[0].pos.x += (float)currentScreen.background.width / 3.0f;
-
-	if((CollisionsContain(1) || CollisionsContain(2)) && pos.x + SCROLLSTR <= upperBound && pos.x + SCROLLSTR >= 0){
-		if ((CollisionsContain(1) && (std::abs(SCROLLSTR) / SCROLLSTR) == 1) ||
-			(CollisionsContain(2) && (std::abs(SCROLLSTR) / SCROLLSTR) == -1)  ){
-			MoveEverything(-1.0f * SCROLLSTR);
-			pos.x += SCROLLSTR;
-		}
-		currentScreen.offset.x = screenAnchor.hitboxes[0].pos.x; // quick and dirty
-	}	
-	if((CollisionsContain(443) || CollisionsContain(449))
-		&& pos.y + SCROLLSTRY <= lowerBoundY && pos.y + SCROLLSTRY >= 0){
-		if ((CollisionsContain(443) && (std::abs(SCROLLSTRY) / SCROLLSTRY) == -1) ||
-			(CollisionsContain(449) && (std::abs(SCROLLSTRY) / SCROLLSTRY) == 1)  ){
-			MoveEverythingY(-1.0f * SCROLLSTRY);
-			pos.y += SCROLLSTRY;
-		}
-	}
-	oldpos = pos;
-}
-
-void MoveEverything(double dir){
-	for(int i = 0; i < LOADED_ENTITIES_HEAD; i++){
-		if(LOADED_ENTITIES[i].triggerID == 1 || LOADED_ENTITIES[i].triggerID == 2
-		|| LOADED_ENTITIES[i].triggerID == 443 || LOADED_ENTITIES[i].triggerID == 449){
-			if(++i < LOADED_ENTITIES_HEAD)
-				return;	
-		}
-		for(int k = 0; k < LOADED_ENTITIES[i].hitboxes.size(); k++){
-			LOADED_ENTITIES[i].hitboxes[k].pos.x += (int)(dir * currentScreen.tileSizeX);
-			if (SCROLL_DEBUG)
-				std::cout << "Moving hitbox " << k << " of entity " << i << " to " << LOADED_ENTITIES[i].hitboxes[k].pos.x << " (" << dir << " * " << currentScreen.tileSizeX << ") pixels" << std::endl;
-		}
-	}
-}
-
-void MoveEverythingY(double dir){
-	for(int i = 0; i < LOADED_ENTITIES_HEAD; i++){
-		if(LOADED_ENTITIES[i].triggerID == 1 || LOADED_ENTITIES[i].triggerID == 2
-		|| LOADED_ENTITIES[i].triggerID == 443 || LOADED_ENTITIES[i].triggerID == 449){
-			if(++i < LOADED_ENTITIES_HEAD)
-				return;	
-		}
-		for(int k = 0; k < LOADED_ENTITIES[i].hitboxes.size(); k++){
-			LOADED_ENTITIES[i].hitboxes[k].pos.y += (int)(dir * currentScreen.tileSizeY);
-			if (SCROLL_DEBUG)
-				std::cout << "Moving hitbox " << k << " of entity " << i << " to " << LOADED_ENTITIES[i].hitboxes[k].pos.y << " (" << dir << " * " << currentScreen.tileSizeY << ") pixels" << std::endl;
-		}
-	}
 }
 
 bool StartScreen(Music &music){
@@ -601,6 +470,15 @@ void InitGame(){ // i'm really tired
 	player.hitboxes[0].pos.x += 0.5 * (TEXTUREBOX - COLLISIONBOXW);
 	player.hitboxes[0].pos.y += 0.5 * (TEXTUREBOX - COLLISIONBOXH);
 
+	// cursed fix because i have no clue what is happening here
+	if(currentScreen.fileName == "assets/LevelTwo.ce"){
+		for(int i = 0; i < currentScreen.barriers.size(); i++){
+			if(currentScreen.barriers[i] == 1){
+				currentScreen.barriers[i]=-1;
+			}
+		}
+	}
+
 }
 
 void ChangeTexture(bool right, bool flying){
@@ -646,84 +524,6 @@ void FixTextures(){
 				LOADED_ENTITIES[i].triggerID /= 7;
 			}
 	}
-}
-
-void UpdateKarens(){
-	for(int i = 0; i < LOADED_ENTITIES_HEAD; i++){
-		if(LOADED_ENTITIES[i].triggerID == 10){
-			KarenAI(i);
-		}
-	}
-}
-
-void KarenAI(int ent){
-	static bool detected = false;
-	static double timeSinceLastProj = 0;
-	static double chaseTimer = 1;
-	// detect player
-	// if one of them detects the player, all of them see the player
-	// it's a feature, not a bug
-	chaseTimer += TICKTIME;
-	timeSinceLastProj += TICKTIME;
-	if(std::abs(LOADED_ENTITIES[ent].hitboxes[0].pos.x - player.hitboxes[0].pos.x) <= 3 * currentScreen.tileSizeX){
-		chaseTimer = 0;
-	}
-	if (dead)
-		chaseTimer = 1;
-	detected = (0.5 >= chaseTimer);
-	if(!detected)
-		return;
-	// move to the player
-	if(timeSinceLastProj >= (double)(10.0f / AIDIFFICULTY) * 0.5f ){
-		if(DEBUG)
-			std::cout << "Attacked player" << " , " << LOADED_ENTITIES_HEAD << std::endl;
-		timeSinceLastProj = 0;
-		AttackPlayer(ent);
-	}
-	
-}
-
-void AttackPlayer(int source){
-/*	static Texture2D badWords = LoadTexture("assets/bad_words.png");
-	static Entity proj[30];
-	static int i = 0;
-	if(source == -1){
-		for(int k = 0; k < 30; k++){
-			// proj[k].ent->hitboxes[0].pos = {-10000,-10000};
-			// proj[k].AddToGArry();
-			proj[k] = Entity();
-			proj[k].hitboxes[0].speed = {0,0};
-			proj[k].hitboxes[0].pos = {-128,-128};
-		}
-	}
-	for(int k = 0; k < 30; k++)
-		proj[i].ent->triggerID = 3;
-	proj[i].ent->hitboxes.clear();
-	proj[i].ent->hitboxTexts.clear();
-	proj[i].addBox(EntityHitbox(LOADED_ENTITIES[source].hitboxes[0].pos.x + 45, LOADED_ENTITIES[source].hitboxes[0].pos.y + 80, currentScreen.tileSizeX,currentScreen.tileSizeY));
-	if(player.hitboxes[0].pos.x == LOADED_ENTITIES[source].hitboxes[0].pos.x){
-		proj[i].hitboxes[0].speed = {0,-1};
-	}                                   
-	?"
-	\VESPD * (1.0f / AIDIFFICULTY);
-	const double slope = (player.hitboxes[0].pos.y - (sourceP.y)) / (player.hitboxes[0].pos.x - (sourceP.x));
-	proj[i].hitboxes[0].speed = {
-		// ((x2 - x1) / |x2 - x1|) * cos(tan^-1((y2 - y1) / (x2 - x1)))
-		(double)speedMultiplier * (double)xParity * std::cos(std::atan2(slope,1)) ,
-		// ((x2 - x1) / |x2 - x1|) * sin(tan^-1((y2 - y1) / (x2 - x1)))
-		(double)speedMultiplier * (double)xParity * std::sin(std::atan2(slope,1))
-	};
-	std::cout << proj[i].hitboxes[0].speed.x << " , " << proj[i].hitboxes[0].speed.y << std::endl;
-	}
-	proj[i].addTexture(badWords);
-	i++;
-	if(i == 30){
-		i = 0;
-	} */
-}
-
-void InitKarens(){
-	// spooky
 }
 
 bool CollisionsContain(int x, bool update){
